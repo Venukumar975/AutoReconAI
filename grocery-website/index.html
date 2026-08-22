@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FreshMart - Online Grocery & Supermarket</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Isolated CSS Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Toast Notification -->
+    <div id="cart-toast"></div>
+
+    <!-- Top Announcement -->
+    <div class="top-notice">
+        ⚡ Superfast Grocery Delivery in <span>15 Minutes</span> | Free Delivery on orders above ₹499
+    </div>
+
+    <!-- Header -->
+    <header>
+        <a href="#" class="brand-logo">
+            <div class="logo-badge">🛒</div>
+            <div class="brand-text">Fresh<span>Mart</span></div>
+        </a>
+
+        <div class="search-bar">
+            <span class="search-icon">🔍</span>
+            <input type="text" class="search-input" placeholder="Search for groceries, rice, atta, oil, dairy...">
+        </div>
+
+        <div class="header-actions">
+            <div class="cart-btn" onclick="openCart()">
+                <span>🛍️ Cart</span>
+                <span id="cart-count" class="cart-badge">0</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Promo Banner -->
+    <section class="hero-banner">
+        <div class="promo-card">
+            <div>
+                <div class="promo-tag">Fresh Arrivals &bull; 100% Organic</div>
+                <div class="promo-title">Daily Grocery Essentials Delivered Fast</div>
+                <div class="promo-sub">Farm fresh produce, staples, dairy & cooking essentials at best prices</div>
+            </div>
+            <div style="font-size: 3.5rem;">🥑 🌾 🥛</div>
+        </div>
+    </section>
+
+    <!-- Categories -->
+    <nav class="categories-bar">
+        <div class="cat-pill active">All Products</div>
+        <div class="cat-pill">Rice & Grains</div>
+        <div class="cat-pill">Atta & Flours</div>
+        <div class="cat-pill">Edible Oils & Ghee</div>
+        <div class="cat-pill">Dals & Pulses</div>
+        <div class="cat-pill">Dairy Products</div>
+        <div class="cat-pill">Spices & Seasoning</div>
+        <div class="cat-pill">Fresh Fruits</div>
+    </nav>
+
+    <!-- Product Catalog Grid -->
+    <main class="main-content">
+        <div class="catalog-header">
+            <div class="catalog-title">All Grocery Essentials (12 Items)</div>
+        </div>
+
+        <div class="product-grid">
+
+            <!-- Item 1 -->
+            <div class="product-card">
+                <div class="img-wrap">
+                    <span class="discount-badge">SAVE 15%</span>
+                    <img src="https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=400&q=80" alt="Rice" class="product-img">
+                </div>
+                <div class="product-details">
+                    <div>
+                        <div class="product-category">Rice & Grains</div>
+                        <div class="product-name">Daawat Rozana Basmati Rice</div>
+                        <div class="product-unit">Pack Size: 5 kg</div>
+                    </div>
+                    <div>
+                        <div class="price-row">
+                            <span class="current-price">₹399.00</span>
+                            <span class="mrp-price">₹470.00</span>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn-add-cart" onclick="addToCart('Daawat Rozana Basmati Rice', 399)">Add to Cart</button>
+                            <button class="btn-buy-now" onclick="buyNow('Daawat Rozana Basmati Rice', 399)">Buy Now</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Item 2 -->
+            <div class="product-card">
+                <div class="img-wrap">
+                    <span class="discount-badge">POPULAR</span>
+                    <img src="https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=80" alt="Atta" class="product-img">
+                </div>
+                <div class="product-details">
+                    <div>
+                        <div class="product-category">Atta & Flours</div>
+                        <div class="product-name">Aashirvaad Shudh Chakki Atta</div>
+                        <div class="product-unit">Pack Size: 10 kg</div>
+                    </div>
+                    <div>
+                        <div class="price-row">
+                            <span class="current-price">₹465.00</span>
+                            <span class="mrp-price">₹520.00</span>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn-add-cart" onclick="addToCart('Aashirvaad Shudh Chakki Atta', 465)">Add to Cart</button>
+                            <button class="btn-buy-now" onclick="buyNow('Aashirvaad Shudh Chakki Atta', 465)">Buy Now</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Item 3 -->
+            <div class="product-card">
+                <div class="img-wrap">
+                    <span class="discount-badge">SAVE 10%</span>
+                    <img src="https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=400&q=80" alt="Oil" class="product-img">
+                </div>
+                <div class="product-details">
+                    <div>
+                        <div class="product-category">Edible Oils</div>
+                        <div class="product-name">Fortune Sunlite Sunflower Oil</div>
+                        <div class="product-unit">Pack Size: 5 Litre Can</div>
+                    </div>
+                    <div>
+                        <div class="price-row">
+                            <span class="current-price">₹780.00</span>
+                            <span class="mrp-price">₹860.00</span>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn-add-cart" onclick="addToCart('Fortune Sunlite Sunflower Oil', 780)">Add to Cart</button>
+                            <button class="btn-buy-now" onclick="buyNow('Fortune Sunlite Sunflower Oil', 780)">Buy Now</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Item 4 -->
+            <div class="product-card">
+                <div class="img-wrap">
+                    <img src="https://images.unsplash.com/photo-1518110925495-5fe2fda0442c?auto=format&fit=crop&w=400&q=80" alt="Salt" class="product-img">
+                </div>
+                <div class="product-details">
+                    <div>
+                        <div class="product-category">Spices & Salt</div>
+                        <div class="product-name">Tata Salt Vacuum Evaporated</div>
+                        <div class="product-unit">Pack Size: 1 kg</div>
+                    </div>
+                    <div>
+                        <div class="price-row">
+                            <span class="current-price">₹28.00</span>
+                            <span class="mrp-price">₹30.00</span>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn-add-cart" onclick="addToCart('Tata Salt Vacuum Evaporated', 28)">Add to Cart</button>
+                            <button class="btn-buy-now" onclick="buyNow('Tata Salt Vacuum Evaporated', 28)">Buy Now</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Item 5 -->
+            <div class="product-card">
+                <div class="img-wrap">
+                    <span class="discount-badge">ORGANIC</span>
+                    <img src="https://images.unsplash.com/photo-1585994192701-f1a505c817ea?auto=format&fit=crop&w=400&q=80" alt="Dal" class="product-img">
+                </div>
+                <div class="product-details">
+                    <div>
+                        <div class="product-category">Dals & Pulses</div>
+                        <div class="product-name">Organic Unpolished Toor Dal</div>
+                        <div class="product-unit">Pack Size: 2 kg</div>
+                    </div>
+                    <div>
+                        <div class="price-row">
+                            <span class="current-price">₹340.00</span>
+                            <span class="mrp-price">₹390.00</span>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn-add-cart" onclick="addToCart('Organic Unpolished Toor Dal', 340)">Add to Cart</button>
+                            <button class="btn-buy-now" onclick="buyNow('Organic Unpolished Toor Dal', 340)">Buy Now</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Item 6 -->
+            <div class="product-card">
+                <div class="img-wrap">
+                    <img src="https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?auto=format&fit=crop&w=400&q=80" alt="Butter" class="product-img">
+                </div>
+                <div class="product-details">
+                    <div>
+                        <div class="product-category">Dairy</div>
+                        <div class="product-name">Amul Pasteurized Table Butter</div>
+                        <div class="product-unit">Pack Size: 500 g</div>
+                    </div>
+                    <div>
+                        <div class="price-row">
+                            <span class="current-price">₹275.00</span>
+                            <span class="mrp-price">₹290.00</span>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn-add-cart" onclick="addToCart('Amul Pasteurized Table Butter', 275)">Add to Cart</button>
+                            <button class="btn-buy-now" onclick="buyNow('Amul Pasteurized Table Butter', 275)">Buy Now</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Item 7 -->
+            <div class="product-card">
+                <div class="img-wrap">
+                    <img src="https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?auto=format&fit=crop&w=400&q=80" alt="Rice" class="product-img">
+                </div>
+                <div class="product-details">
+                    <div>
+                        <div class="product-category">Rice & Grains</div>
+                        <div class="product-name">India Gate Classic Basmati Rice</div>
+                        <div class="product-unit">Pack Size: 1 kg</div>
+                    </div>
+                    <div>
+                        <div class="price-row">
+                            <span class="current-price">₹195.00</span>
+                            <span class="mrp-price">₹230.00</span>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn-add-cart" onclick="addToCart('India Gate Classic Basmati Rice', 195)">Add to Cart</button>
+                            <button class="btn-buy-now" onclick="buyNow('India Gate Classic Basmati Rice', 195)">Buy Now</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Item 8 -->
+            <div class="product-card">
+                <div class="img-wrap">
+                    <img src="https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=400&q=80" alt="Masala" class="product-img">
+                </div>
+                <div class="product-details">
+                    <div>
+                        <div class="product-category">Spices & Salt</div>
+                        <div class="product-name">Everest Super Garam Masala</div>
+                        <div class="product-unit">Pack Size: 100 g</div>
+                    </div>
+                    <div>
+                        <div class="price-row">
+                            <span class="current-price">₹82.00</span>
+                            <span class="mrp-price">₹90.00</span>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn-add-cart" onclick="addToCart('Everest Super Garam Masala', 82)">Add to Cart</button>
+                            <button class="btn-buy-now" onclick="buyNow('Everest Super Garam Masala', 82)">Buy Now</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Item 9 -->
+            <div class="product-card">
+                <div class="img-wrap">
+                    <span class="discount-badge">FRESH</span>
+                    <img src="https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=400&q=80" alt="Apples" class="product-img">
+                </div>
+                <div class="product-details">
+                    <div>
+                        <div class="product-category">Fresh Fruits</div>
+                        <div class="product-name">Fresh Royal Shimla Apples</div>
+                        <div class="product-unit">Pack Size: 1 kg (4-5 pcs)</div>
+                    </div>
+                    <div>
+                        <div class="price-row">
+                            <span class="current-price">₹180.00</span>
+                            <span class="mrp-price">₹210.00</span>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn-add-cart" onclick="addToCart('Fresh Royal Shimla Apples', 180)">Add to Cart</button>
+                            <button class="btn-buy-now" onclick="buyNow('Fresh Royal Shimla Apples', 180)">Buy Now</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Item 10 -->
+            <div class="product-card">
+                <div class="img-wrap">
+                    <img src="https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=400&q=80" alt="Tea" class="product-img">
+                </div>
+                <div class="product-details">
+                    <div>
+                        <div class="product-category">Beverages</div>
+                        <div class="product-name">Tata Tea Premium Blend</div>
+                        <div class="product-unit">Pack Size: 1 kg</div>
+                    </div>
+                    <div>
+                        <div class="price-row">
+                            <span class="current-price">₹420.00</span>
+                            <span class="mrp-price">₹480.00</span>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn-add-cart" onclick="addToCart('Tata Tea Premium Blend', 420)">Add to Cart</button>
+                            <button class="btn-buy-now" onclick="buyNow('Tata Tea Premium Blend', 420)">Buy Now</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Item 11 -->
+            <div class="product-card">
+                <div class="img-wrap">
+                    <img src="https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=400&q=80" alt="Honey" class="product-img">
+                </div>
+                <div class="product-details">
+                    <div>
+                        <div class="product-category">Sweeteners</div>
+                        <div class="product-name">Dabur 100% Pure Honey</div>
+                        <div class="product-unit">Pack Size: 500 g Squeezy</div>
+                    </div>
+                    <div>
+                        <div class="price-row">
+                            <span class="current-price">₹199.00</span>
+                            <span class="mrp-price">₹235.00</span>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn-add-cart" onclick="addToCart('Dabur 100% Pure Honey', 199)">Add to Cart</button>
+                            <button class="btn-buy-now" onclick="buyNow('Dabur 100% Pure Honey', 199)">Buy Now</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Item 12 -->
+            <div class="product-card">
+                <div class="img-wrap">
+                    <img src="https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=400&q=80" alt="Turmeric" class="product-img">
+                </div>
+                <div class="product-details">
+                    <div>
+                        <div class="product-category">Spices & Salt</div>
+                        <div class="product-name">Everest Pure Turmeric Powder</div>
+                        <div class="product-unit">Pack Size: 200 g</div>
+                    </div>
+                    <div>
+                        <div class="price-row">
+                            <span class="current-price">₹54.00</span>
+                            <span class="mrp-price">₹65.00</span>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn-add-cart" onclick="addToCart('Everest Pure Turmeric Powder', 54)">Add to Cart</button>
+                            <button class="btn-buy-now" onclick="buyNow('Everest Pure Turmeric Powder', 54)">Buy Now</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer>
+        &copy; 2026 FreshMart Supermarket Pvt Ltd. All rights reserved. &bull; Bengaluru, Karnataka
+    </footer>
+
+    <!-- Isolated JavaScript -->
+    <script src="script.js"></script>
+</body>
+</html>
