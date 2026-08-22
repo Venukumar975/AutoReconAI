@@ -1,0 +1,62 @@
+[
+  {
+    "id": 1,
+    "name": "Daawat Rozana Basmati Rice 5kg",
+    "price": 399.00
+  },
+  {
+    "id": 2,
+    "name": "Aashirvaad Shudh Chakki Atta 10kg",
+    "price": 465.00
+  },
+  {
+    "id": 3,
+    "name": "Fortune Sunlite Sunflower Oil 5L",
+    "price": 780.00
+  },
+  {
+    "id": 4,
+    "name": "Tata Salt Vacuum Evaporated 1kg",
+    "price": 28.00
+  },
+  {
+    "id": 5,
+    "name": "Organic Unpolished Toor Dal 2kg",
+    "price": 340.00
+  },
+  {
+    "id": 6,
+    "name": "Amul Pasteurized Table Butter 500g",
+    "price": 275.00
+  },
+  {
+    "id": 7,
+    "name": "India Gate Classic Basmati Rice 1kg",
+    "price": 195.00
+  },
+  {
+    "id": 8,
+    "name": "Everest Super Garam Masala 100g",
+    "price": 82.00
+  },
+  {
+    "id": 9,
+    "name": "Fresh Royal Shimla Apples 1kg",
+    "price": 180.00
+  },
+  {
+    "id": 10,
+    "name": "Tata Tea Premium Blend 1kg",
+    "price": 420.00
+  },
+  {
+    "id": 11,
+    "name": "Dabur 100% Pure Honey 500g",
+    "price": 199.00
+  },
+  {
+    "id": 12,
+    "name": "Everest Pure Turmeric Powder 200g",
+    "price": 54.00
+  }
+]

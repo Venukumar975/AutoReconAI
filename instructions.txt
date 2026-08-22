@@ -1,0 +1,7 @@
+1.  Before Running the Simulated Tests to create users data , make sure you Initialised the database tables
+    a . To create database and tables in it ( cart , products , orders , payments ) 
+          => python database/init_db.py
+    b . To clean the databaese or to delete tables from database
+          => python database/clean_db.py
+
+2.  
