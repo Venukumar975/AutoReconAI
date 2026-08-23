@@ -335,8 +335,8 @@ def generate_linked_grid():
             total_gst += group_tax
 
             bank_info = bank_by_utr.get(utr)
-            bank_deposited = bank_info["credit"] if bank_info else group_net
-            bank_date = bank_info.get("txn_date", "") if bank_info else ""
+            bank_deposited = bank_info["credit"] if bank_info else 0.0
+            bank_date = bank_info.get("txn_date", "") if bank_info else "⚠️ Bank Credit Missing"
             if bank_deposited > 0:
                 total_bank_deposited += bank_deposited
 
@@ -365,13 +365,21 @@ def generate_linked_grid():
                 else:
                     formatted_date = "-"
 
-                if order_status == "FULFILLED":
+                # Detect 3 Core Edge Case Mismatches
+                fee_rate = (s["fee"] / s["amount"]) if s["amount"] > 0 else 0.0
+                is_fee_overcharged = (fee_rate > 0.0205)
+                is_webhook_pending = (order_status == "PENDING")
+                is_orphan_refund = (oid not in orders_by_id or s["net_credit"] < 0)
+
+                is_mismatched = is_webhook_pending or is_fee_overcharged or is_orphan_refund
+
+                if not is_mismatched and order_status == "FULFILLED":
                     matched_orders_count += 1
                     matched_badge = "✅ Matched"
-                    settled_badge = "100% Settled"
+                    settled_badge = "matched 100%"
                 else:
-                    matched_badge = "⚠️ Pending"
-                    settled_badge = "Pending Webhook"
+                    matched_badge = "⚠️ Mismatched"
+                    settled_badge = "Mismatched"
 
                 child_orders.append({
                     "order_id": oid,
@@ -382,7 +390,11 @@ def generate_linked_grid():
                     "net_payout": s["net_credit"],
                     "matched": matched_badge,
                     "settled": settled_badge,
-                    "order_status": order_status
+                    "order_status": order_status,
+                    "is_mismatched": is_mismatched,
+                    "is_fee_overcharged": is_fee_overcharged,
+                    "is_webhook_pending": is_webhook_pending,
+                    "is_orphan_refund": is_orphan_refund
                 })
 
             grouped_utr_list.append({
@@ -392,6 +404,26 @@ def generate_linked_grid():
                 "orders": child_orders
             })
 
+        # Sort UTR groups chronologically by date ASC
+        def get_utr_sort_key(group):
+            orders_list = group.get("orders", [])
+            for o in orders_list:
+                dt_str = o.get("date", "")
+                if dt_str and dt_str != "-":
+                    try:
+                        parts = dt_str.split("-")
+                        if len(parts) == 3 and len(parts[1]) == 3:
+                            months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+                            m_idx = months.index(parts[1]) + 1 if parts[1] in months else 1
+                            return f"{parts[2]}-{m_idx:02d}-{int(parts[0]):02d}"
+                    except Exception:
+                        pass
+                    return dt_str
+            return "9999-99-99"
+
+        grouped_utr_list.sort(key=get_utr_sort_key)
+
+        mismatched_count = total_orders_count - matched_orders_count
         match_rate = round((matched_orders_count / max(total_orders_count, 1)) * 100, 1)
 
         return jsonify({
@@ -402,6 +434,8 @@ def generate_linked_grid():
                 "total_fees": round(total_fees, 2),
                 "total_gst": round(total_gst, 2),
                 "total_bank_deposited": round(total_bank_deposited, 2),
+                "matched_count": matched_orders_count,
+                "mismatched_count": mismatched_count,
                 "match_rate": f"{match_rate}%"
             },
             "utr_groups": grouped_utr_list

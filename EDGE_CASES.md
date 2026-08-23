@@ -40,7 +40,7 @@ In real e-commerce, money moves through three separate systems before landing in
 
 ---
 
-## 3. The 5 Core Commercial Edge Cases (Root Causes & Resolutions)
+## 3. The 3 Core Commercial Edge Cases (Root Causes & Resolutions)
 
 ---
 
@@ -85,24 +85,7 @@ In real e-commerce, money moves through three separate systems before landing in
 
 ---
 
-### ⚠️ Edge Case 3: Bank Timing Lag (Floating In-Transit Batch)
-
-* **Root Cause:**  
-  Razorpay processes a daily settlement batch on Friday at 8:00 PM and marks it `settled` with UTR `CMS9823412099`. However, the bank generated its end-of-day statement at 4:00 PM (before the NEFT clearing cycle completed).
-
-* **Table State & Discrepancy:**
-  * **`payments` table:** Settlement batch of **₹18,000.00** marked `settled`.
-  * **Bank Statement PDF:** Contains **₹0.00** for that UTR on Friday's statement.
-  * **Discrepancy:** Razorpay claims money was sent; bank ledger shows money missing.
-
-* **AI Finance Controller Action:**
-  1. Checks UTR timestamps against bank cutoff schedules.
-  2. Classifies anomaly as `FLOAT_TIMING_LAG` (in-transit funds).
-  3. Prevents panic bookkeeping adjustments and sets a watch for T+1 bank statement clearance.
-
----
-
-### ⚠️ Edge Case 4: Orphan Customer Refund (Prior-Period Deduction)
+### ⚠️ Edge Case 3: Orphan Customer Refund (Prior-Period Deduction)
 
 * **Root Cause:**  
   A customer returns an item worth ₹1,200 bought during the previous billing cycle. Razorpay processes the refund and automatically deducts ₹1,200 from **today's** aggregate payout.
@@ -119,32 +102,13 @@ In real e-commerce, money moves through three separate systems before landing in
 
 ---
 
-### ⚠️ Edge Case 5: Split Bank Settlement (RTGS / Bank Threshold Limit)
-
-* **Root Cause:**  
-  A large payout of ₹50,000 is split by the payment switch or bank RTGS limits into two separate credit transfers (e.g. ₹30,000 with UTR `CMS..._P1` and ₹20,000 with UTR `CMS..._P2`).
-
-* **Table State & Discrepancy:**
-  * **Razorpay Settlement:** 1 single batch total of **₹50,000.00**.
-  * **Bank Statement PDF:** 2 separate credit entries of **₹30,000.00** and **₹20,000.00**.
-  * **Discrepancy:** Direct 1-to-1 UTR lookup fails because no single bank entry matches ₹50,000.
-
-* **AI Finance Controller Action:**
-  1. Uses stem-matching and aggregate subset summation to detect linked UTRs (`_P1` and `_P2`).
-  2. Proves that $30,000 + 20,000 = 50,000$.
-  3. Classifies anomaly as `SPLIT_SETTLEMENT` and clears the batch to the books.
-
----
-
 ## 4. Master Comparison Matrix
 
 | # | Anomaly Name | Where the Issue Appears | Cause | Resolution by AI Finance Controller |
 |---|---|---|---|---|
 | **1** | **Dropped Webhook** | `orders` = PENDING vs `payments` = captured | Webhook failed / network timeout | Flags ghost payment $\rightarrow$ Recommends auto-fulfillment |
 | **2** | **Fee Overcharge** | Razorpay fee > Agreed 2% MDR schedule | Wrong rate tier applied (2.75%) | Calculates ₹ variance $\rightarrow$ Drafts Razorpay dispute ticket |
-| **3** | **Bank Timing Lag** | Razorpay settled vs Bank deposit missing | Bank statement generated before T+1 cutoff | Flags as Floating Cash $\rightarrow$ Awaits next day statement |
-| **4** | **Orphan Refund** | Bank payout short by ₹1,200 with no order today | Prior-cycle return deducted today | Links refund $\rightarrow$ Books to *Returns Allowed* ledger |
-| **5** | **Split Payout** | 1 Razorpay batch vs 2 Bank PDF deposit lines | Bank RTGS transfer limit split | Aggregates split deposits $\rightarrow$ Verifies total net credit |
+| **3** | **Orphan Refund** | Bank payout short by ₹1,200 with no order today | Prior-cycle return deducted today | Links refund $\rightarrow$ Books to *Returns Allowed* ledger |
 
 ---
 

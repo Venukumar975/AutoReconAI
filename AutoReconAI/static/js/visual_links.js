@@ -82,8 +82,8 @@ const VisualLinks = (() => {
 
           <!-- 8. Matched -->
           <td style="text-align: center;">
-            <span class="badge-status ${order.order_status === 'FULFILLED' ? 'badge-matched' : 'badge-webhook'}">
-              ${order.matched}
+            <span class="badge-status ${order.is_mismatched ? 'badge-mismatched' : 'badge-matched'}">
+              ${order.is_mismatched ? '⚠️ Mismatched' : '✅ Matched'}
             </span>
           </td>
 
@@ -91,9 +91,11 @@ const VisualLinks = (() => {
           <td style="text-align: center;">
             <div class="utr-progress-box">
               <div class="progress-track">
-                <div class="progress-fill" style="width: ${order.order_status === 'FULFILLED' ? '100%' : '20%'}"></div>
+                <div class="progress-fill" style="width: ${order.is_mismatched ? '25%' : '100%'}; background: ${order.is_mismatched ? 'linear-gradient(90deg, #ef4444, #f97316)' : '#10b981'};"></div>
               </div>
-              <span class="progress-text">${order.order_status === 'FULFILLED' ? 'matched 100%' : 'Pending'}</span>
+              <span class="progress-text" style="color: ${order.is_mismatched ? '#dc2626' : '#059669'}; font-weight: 700;">
+                ${order.is_mismatched ? 'Discrepancy' : 'matched 100%'}
+              </span>
             </div>
           </td>
         `;

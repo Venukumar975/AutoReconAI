@@ -5,10 +5,4 @@
           => python database/clean_db.py
 
 2.  Run the complete 55-order visual pipeline:
-        .\venv\Scripts\python run_simulation_pipeline.py
-
-        # Or in Fast-Forward mode:
-        .\venv\Scripts\python run_simulation_pipeline.py --fast
-
-        # Or for a quick 10-order test:
-        .\venv\Scripts\python run_simulation_pipeline.py --count 10 --fast
+        .\venv\Scripts\ python "Data Simulator & Generator/run_simulation_pipeline.py"

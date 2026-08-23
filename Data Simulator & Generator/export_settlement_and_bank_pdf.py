@@ -107,9 +107,15 @@ def export_razorpay_settlement_csv():
         print("[WARNING] No payment records found in store.db to export.")
         return []
 
+    # Build UTR date lookup for orphan refund fallbacks
+    utr_date_lookup = {}
+    for r in rows:
+        if r["created_at"] and r["settlement_utr"]:
+            utr_date_lookup[r["settlement_utr"]] = r["created_at"]
+
     csv_data = []
     for idx, r in enumerate(rows, 1):
-        created_dt = r["created_at"] or "2026-09-01 10:00:00"
+        created_dt = r["created_at"] or utr_date_lookup.get(r["settlement_utr"], "2026-09-01 10:00:00")
         settlement_id = f"setl_S{created_dt[5:7]}{created_dt[8:10]}_{idx:03d}"
         
         csv_data.append({
@@ -138,6 +144,68 @@ def export_razorpay_settlement_csv():
 
     print(f"[SUCCESS] Exported {len(csv_data)} gateway transactions to: {SETTLEMENT_CSV_PATH}")
     return rows
+
+
+def apply_edge_case_mutations(config):
+    """
+    Applies Post-Processing Anomaly Mutations directly on store.db based on config.ini:
+    - Edge Case 1 (Dropped Webhook): Updates N orders to 'PENDING'.
+    - Edge Case 2 (Fee Overcharge): Recalculates N payments at ~2.75% MDR.
+    - Edge Case 4 (Orphan Refund): Inserts negative refund deduction row unlinked to today's orders.
+    """
+    enable_edge_cases = config.getboolean("EDGE_CASES", "enable_edge_cases", fallback=True)
+    if not enable_edge_cases:
+        print("[MUTATOR] Edge Cases disabled in config.ini. Exporting 100% matched clean data.")
+        return
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    # 1. Edge Case 1: Dropped Webhook (Set N orders to PENDING)
+    dropped_count = config.getint("EDGE_CASES", "dropped_webhook_count", fallback=2)
+    if dropped_count > 0:
+        cursor.execute("SELECT order_id FROM orders WHERE order_status = 'FULFILLED' ORDER BY order_id DESC LIMIT ?;", (dropped_count,))
+        target_orders = [r["order_id"] for r in cursor.fetchall()]
+        for oid in target_orders:
+            cursor.execute("UPDATE orders SET order_status = 'PENDING' WHERE order_id = ?;", (oid,))
+        print(f"[MUTATOR] Edge Case 1 Applied: Set {len(target_orders)} orders ({', '.join(target_orders)}) to PENDING status.")
+
+    # 2. Edge Case 2: Gateway Fee Overcharge (Overcharge N payments at ~2.75% MDR)
+    fee_overcharge_count = config.getint("EDGE_CASES", "fee_overcharge_count", fallback=3)
+    if fee_overcharge_count > 0:
+        cursor.execute("SELECT payment_id, amount FROM payments ORDER BY payment_id ASC LIMIT ?;", (fee_overcharge_count,))
+        target_payments = cursor.fetchall()
+        for p in target_payments:
+            amt = p["amount"]
+            overcharge_rate = 0.02 + random.uniform(0.005, 0.0075)  # ~2.75%
+            fee = round(amt * overcharge_rate, 2)
+            tax = round(fee * 0.18, 2)
+            net_credit = round(amt - fee - tax, 2)
+            cursor.execute("""
+                UPDATE payments 
+                SET fee = ?, tax = ?, net_credit = ? 
+                WHERE payment_id = ?;
+            """, (fee, tax, net_credit, p["payment_id"]))
+        print(f"[MUTATOR] Edge Case 2 Applied: Overcharged {len(target_payments)} payments with ~2.75% MDR.")
+
+    # 3. Edge Case 3: Orphan Customer Refund (-₹1,200 prior-period deduction)
+    orphan_count = config.getint("EDGE_CASES", "orphan_refund_count", fallback=1)
+    if orphan_count > 0:
+        cursor.execute("SELECT settlement_utr FROM payments LIMIT 1;")
+        ref_row = cursor.fetchone()
+        utr_target = ref_row["settlement_utr"] if ref_row else "CMS202609151081"
+        for i in range(1, orphan_count + 1):
+            pid = f"pay_REFUND_{random.randint(100, 999)}"
+            old_oid = f"ORD_PRIOR_{900 + i}"
+            cursor.execute("""
+                INSERT OR REPLACE INTO payments (payment_id, order_id, amount, fee, tax, net_credit, settlement_utr, status)
+                VALUES (?, ?, 0.00, 0.00, 0.00, -1200.00, ?, 'captured');
+            """, (pid, old_oid, utr_target))
+        print(f"[MUTATOR] Edge Case 3 Applied: Inserted {orphan_count} orphan refund deduction (-INR 1,200.00) under UTR {utr_target}.")
+
+    conn.commit()
+    conn.close()
 
 
 def prepare_bank_transactions(payment_rows, config):
@@ -445,6 +513,9 @@ def main():
     print(f" Output Directory: {OUTPUT_DIR}")
     print(f" Configured Bank PDF Format: {bank_format}")
     print("=================================================================\n")
+
+    # Apply Edge Case Anomaly Mutations on store.db if enabled in config.ini
+    apply_edge_case_mutations(config)
 
     export_store_orders_csv()
     payment_rows = export_razorpay_settlement_csv()
