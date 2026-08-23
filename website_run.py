@@ -31,7 +31,7 @@ def run_server():
     url = f"http://127.0.0.1:{PORT}"
 
     print("=================================================================")
-    print(f" FreshMart Website is Running at: {url}")
+    print(f" FreshMart Static Website Server Running at: {url}")
     print(f" Serving Directory: {DIRECTORY}")
     print(" (Cache is completely disabled)")
     print("=================================================================")
