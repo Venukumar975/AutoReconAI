@@ -149,7 +149,7 @@ async function handlePlaceOrder() {
     buyBtn.disabled = true;
     buyBtn.innerText = '⏳ Finalizing Order in store.db...';
 
-    const randomCustomer = DEFAULT_CUSTOMER_NAMES[Math.floor(Math.random() * DEFAULT_CUSTOMER_NAMES.length)];
+    const randomCustomer = window.CURRENT_SIM_CUSTOMER || DEFAULT_CUSTOMER_NAMES[Math.floor(Math.random() * DEFAULT_CUSTOMER_NAMES.length)];
 
     try {
         const resp = await fetch('/api/create-order', {
@@ -157,6 +157,7 @@ async function handlePlaceOrder() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 customer_name: randomCustomer,
+                order_date: window.CURRENT_SIM_DATE || null,
                 gross_amount: grandTotal
             })
         });

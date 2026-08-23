@@ -5,9 +5,9 @@ Runs on port 5051 (http://127.0.0.1:5051).
 Acts as the official Razorpay Payment Gateway backend:
 1. Receives payment authorization requests from merchant websites.
 2. Computes 2.0% MDR fee + 18% GST (or simulates fee overcharges).
-3. Records captured transactions into the `payments` table in `store.db`.
-4. Sends back an Acknowledgment (ACK) to the merchant server.
-5. Can simulate Dropped Webhooks / Missed ACKs (Edge Case 1).
+3. Assigns daily settlement UTRs based on transaction dates (e.g. 1st to 20th of month).
+4. Records captured transactions into the `payments` table in `store.db`.
+5. Sends back an Acknowledgment (ACK) to the merchant server.
 """
 
 import json
@@ -25,6 +25,9 @@ DB_PATH = os.path.join(ROOT_DIR, "store.db")
 PORT = 5051
 
 app = Flask(__name__)
+
+
+DAILY_UTR_CACHE = {}
 
 
 def get_db():
@@ -49,7 +52,7 @@ def process_payment():
     """
     Processes a customer payment on Razorpay Gateway:
     - Calculates MDR fee & 18% GST
-    - Generates payment_id & settlement_utr
+    - Assigns realistic date & daily settlement UTR (cached per date)
     - Inserts record into `payments` table
     - Returns Gateway ACK to merchant server
     """
@@ -58,7 +61,7 @@ def process_payment():
         order_id = str(data.get("order_id", ""))
         gross_amount = float(data.get("gross_amount", 0.0))
         customer_name = str(data.get("customer_name", "Customer"))
-        payment_method = str(data.get("payment_method", "upi"))
+        payment_date = str(data.get("payment_date", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         
         # Edge Case Simulation Flags
         simulate_dropped_ack = bool(data.get("simulate_dropped_ack", False))
@@ -67,19 +70,30 @@ def process_payment():
         if not order_id or gross_amount <= 0:
             return jsonify({"success": False, "error": "Invalid order_id or amount"}), 400
 
-        # 1. Calculate Fee & GST
-        # Standard: 2.00% | Overcharge Edge Case: 2.75%
+        # 1. Calculate Fee & GST (Standard: 2.00% | Overcharge Edge Case: 2.75%)
         mdr_rate = 0.0275 if simulate_fee_overcharge else 0.0200
         fee = round(gross_amount * mdr_rate, 2)
         tax = round(fee * 0.18, 2)  # 18% GST on service fee
         net_credit = round(gross_amount - fee - tax, 2)
 
-        # 2. Generate Razorpay Transaction ID & Settlement UTR
+        # 2. Generate Razorpay Transaction ID & Date-Linked Settlement UTR (Cached per Date)
         random_suffix = "".join(random.choices("0123456789ABCDEF", k=6))
         payment_id = f"pay_{order_id.replace('ORD_', 'P')}_{random_suffix}"
-        utr_num = random.randint(9823410000, 9823419999)
-        settlement_utr = f"CMS{utr_num}"
-        created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Extract date string (e.g. "20260901") to create realistic daily batch UTRs
+        try:
+            dt_obj = datetime.strptime(payment_date[:10], "%Y-%m-%d")
+            date_stem = dt_obj.strftime("%Y%m%d")
+            date_key = dt_obj.strftime("%Y-%m-%d")
+        except Exception:
+            date_stem = "20260901"
+            date_key = "2026-09-01"
+            
+        if date_key not in DAILY_UTR_CACHE:
+            daily_seq = random.randint(1001, 9999)
+            DAILY_UTR_CACHE[date_key] = f"CMS{date_stem}{daily_seq}"
+
+        settlement_utr = DAILY_UTR_CACHE[date_key]
 
         # 3. Record in Razorpay's `payments` table in store.db
         conn = get_db()
@@ -91,7 +105,7 @@ def process_payment():
         conn.commit()
         conn.close()
 
-        print(f"[RAZORPAY GATEWAY] Captured {payment_id} for {order_id} | Gross: INR {gross_amount:,.2f} | Fee: INR {fee:,.2f} | Net: INR {net_credit:,.2f} | UTR: {settlement_utr}")
+        print(f"[RAZORPAY GATEWAY] Captured {payment_id} for {order_id} ({payment_date[:10]}) | Gross: INR {gross_amount:,.2f} | Fee: INR {fee:,.2f} | Net: INR {net_credit:,.2f} | UTR: {settlement_utr}")
 
         # 4. Handle Edge Case: Dropped Webhook / Missed ACK
         if simulate_dropped_ack:
@@ -116,7 +130,7 @@ def process_payment():
             "net_credit": net_credit,
             "settlement_utr": settlement_utr,
             "status": "captured",
-            "settled_at": created_at
+            "settled_at": payment_date
         })
 
     except Exception as e:
@@ -126,7 +140,6 @@ def process_payment():
 
 @app.route("/api/gateway/payments", methods=["GET"])
 def list_gateway_payments():
-    """Returns all payment transactions captured by Razorpay."""
     try:
         conn = get_db()
         cursor = conn.cursor()
@@ -142,6 +155,6 @@ if __name__ == "__main__":
     print("=================================================================")
     print(f" [GATEWAY] Razorpay Payment Gateway Server Running at: http://127.0.0.1:{PORT}")
     print(f" Gateway Database: {DB_PATH}")
-    print(" Ready to process payments and send Gateway ACKs...")
+    print(" Ready to process payments with daily settlement UTRs...")
     print("=================================================================")
     app.run(host="127.0.0.1", port=PORT, debug=False)

@@ -6,7 +6,7 @@ Runs on port 5050 (http://127.0.0.1:5050).
 2. `POST /api/cart/add` & `GET /api/cart`: Live active cart management.
 3. `POST /api/create-order`:
    - Step A: Calculates exact Grand Total = Subtotal + 5% GST Tax + Delivery Fee.
-   - Step B: Creates the order in `orders` table (Status: PENDING) with the full Grand Total.
+   - Step B: Creates the order in `orders` table (Status: PENDING) with custom/real-time date.
    - Step C: Links active cart items to `order_id` in `cart` table.
    - Step D: Sends payment authorization request to Razorpay Gateway (Port 5051).
    - Step E:
@@ -26,6 +26,7 @@ from flask import Flask, jsonify, request, send_from_directory
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(ROOT_DIR, "grocery-website")
 DB_PATH = os.path.join(ROOT_DIR, "store.db")
+PRODUCTS_JSON_PATH = os.path.join(ROOT_DIR, "products.json")
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 5050
 RAZORPAY_GATEWAY_URL = "http://127.0.0.1:5051/api/gateway/pay"
 
@@ -201,16 +202,10 @@ def get_active_cart():
 # 4. Create Order & Process with Razorpay Gateway
 @app.route("/api/create-order", methods=["POST"])
 def create_order():
-    """
-    1. Computes exact Grand Total = Subtotal + 5% GST + Delivery Fee.
-    2. Creates order in `orders` table with status PENDING and the Grand Total.
-    3. Converts 'ACTIVE_CART' items to the new `order_id` in `cart` table.
-    4. Calls Razorpay Gateway (Port 5051).
-    5. Updates status to FULFILLED upon receiving Gateway ACK.
-    """
     try:
         data = request.get_json(force=True) or {}
         customer_name = str(data.get("customer_name", "Priya Patel"))
+        custom_date = data.get("created_at") or data.get("order_date")
         simulate_dropped_ack = bool(data.get("simulate_dropped_ack", False))
         simulate_fee_overcharge = bool(data.get("simulate_fee_overcharge", False))
 
@@ -244,7 +239,7 @@ def create_order():
                     pass
 
         order_id = f"ORD_{max_num + 1}"
-        created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        created_at = custom_date if custom_date else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # Step A: Insert into `orders` table (Gross Amount = Grand Total with Tax + Delivery)
         cursor.execute("""
@@ -260,13 +255,14 @@ def create_order():
         """, (order_id,))
         conn.commit()
 
-        print(f"[STORE DB] Order Created: {order_id} | Subtotal: INR {subtotal:,.2f} + Tax: INR {gst_tax:,.2f} + Delivery: INR {delivery_fee:,.2f} = Grand Total: INR {gross_grand_total:,.2f} | Status: PENDING")
+        print(f"[STORE DB] Order Created: {order_id} ({created_at[:10]}) | Total: INR {gross_grand_total:,.2f} | Status: PENDING")
 
-        # Step C: Send Grand Total to Razorpay Gateway (Port 5051)
+        # Step C: Send Grand Total & Date to Razorpay Gateway (Port 5051)
         gateway_payload = {
             "order_id": order_id,
             "gross_amount": gross_grand_total,
             "customer_name": customer_name,
+            "payment_date": created_at,
             "simulate_dropped_ack": simulate_dropped_ack,
             "simulate_fee_overcharge": simulate_fee_overcharge
         }
@@ -311,6 +307,7 @@ def create_order():
             "gross_amount": gross_grand_total,
             "order_status": final_status,
             "payment_id": payment_id,
+            "created_at": created_at,
             "gateway_ack": gateway_ack
         })
 
