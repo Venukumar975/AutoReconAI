@@ -1,15 +1,17 @@
 """
-FreshMart - Dedicated Backend Server & Live Cart Sync
-=====================================================
-1. Serves the static grocery storefront from `grocery-website/` at http://127.0.0.1:5050.
-2. `POST /api/cart/add`:
-   - Immediately inserts / updates the `cart` table in `store.db` (order_id = 'ACTIVE_CART').
-3. `GET /api/cart`:
-   - Returns the active items currently in the `cart` table.
-4. `POST /api/create-order`:
-   - Converts 'ACTIVE_CART' items into a real order in `orders` table (Status: PENDING).
-   - Updates `cart` table with the new `order_id` (e.g. 'ORD_1001').
-   - Strictly NO Razorpay API calls and NO inserts into `payments` table.
+FreshMart - Storefront Backend & Order Processor
+=================================================
+Runs on port 5050 (http://127.0.0.1:5050).
+1. Serves the static grocery storefront from `grocery-website/`.
+2. `POST /api/cart/add` & `GET /api/cart`: Live active cart management.
+3. `POST /api/create-order`:
+   - Step A: Calculates exact Grand Total = Subtotal + 5% GST Tax + Delivery Fee.
+   - Step B: Creates the order in `orders` table (Status: PENDING) with the full Grand Total.
+   - Step C: Links active cart items to `order_id` in `cart` table.
+   - Step D: Sends payment authorization request to Razorpay Gateway (Port 5051).
+   - Step E:
+     - If Gateway returns Success ACK -> Updates `orders` table to FULFILLED.
+     - If Gateway ACK is missed / dropped -> Order remains in PENDING (Edge Case).
 """
 
 import json
@@ -17,6 +19,7 @@ import os
 import sqlite3
 import sys
 import traceback
+import urllib.request
 from datetime import datetime
 from flask import Flask, jsonify, request, send_from_directory
 
@@ -24,14 +27,60 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(ROOT_DIR, "grocery-website")
 DB_PATH = os.path.join(ROOT_DIR, "store.db")
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 5050
+RAZORPAY_GATEWAY_URL = "http://127.0.0.1:5051/api/gateway/pay"
 
 app = Flask(__name__, static_folder=STATIC_DIR)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
 
-def get_db_connection():
-    """Returns a SQLite connection to store.db."""
+def ensure_db_schema():
+    """Ensures that the 4 lean tables exist in store.db."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            price REAL NOT NULL
+        );
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS orders (
+            order_id TEXT PRIMARY KEY,
+            customer_name TEXT NOT NULL,
+            gross_amount REAL NOT NULL,
+            order_status TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cart (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id TEXT NOT NULL,
+            product_name TEXT NOT NULL,
+            quantity INTEGER NOT NULL,
+            total_price REAL NOT NULL
+        );
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS payments (
+            payment_id TEXT PRIMARY KEY,
+            order_id TEXT NOT NULL,
+            amount REAL NOT NULL,
+            fee REAL NOT NULL,
+            tax REAL NOT NULL,
+            net_credit REAL NOT NULL,
+            settlement_utr TEXT NOT NULL,
+            status TEXT NOT NULL
+        );
+    """)
+    conn.commit()
+    conn.close()
+
+
+def get_db():
+    ensure_db_schema()
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
@@ -39,7 +88,6 @@ def get_db_connection():
 
 @app.after_request
 def add_header(response):
-    """Disable caching so browser always receives fresh data."""
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
@@ -57,12 +105,9 @@ def serve_static(path):
     return send_from_directory(STATIC_DIR, path)
 
 
-# 2. Live Add to Cart API (Immediately updates `cart` table in store.db)
+# 2. Live Add to Cart API
 @app.route("/api/cart/add", methods=["POST"])
 def add_to_cart_db():
-    """
-    Inserts or increments an item in `cart` table with order_id = 'ACTIVE_CART'.
-    """
     try:
         data = request.get_json(force=True) or {}
         product_name = str(data.get("product_name", ""))
@@ -71,10 +116,9 @@ def add_to_cart_db():
         if not product_name:
             return jsonify({"success": False, "error": "Product name is required"}), 400
 
-        conn = get_db_connection()
+        conn = get_db()
         cursor = conn.cursor()
 
-        # Check if item already exists in ACTIVE_CART
         cursor.execute("""
             SELECT id, quantity FROM cart 
             WHERE order_id = 'ACTIVE_CART' AND product_name = ?;
@@ -99,13 +143,9 @@ def add_to_cart_db():
 
         conn.commit()
 
-        # Get total active items count
         cursor.execute("SELECT SUM(quantity) FROM cart WHERE order_id = 'ACTIVE_CART';")
         total_count = cursor.fetchone()[0] or 0
-
         conn.close()
-
-        print(f"[CART DB] Added '{product_name}' (Item Qty: {current_item_qty} | Total Cart Items: {total_count})")
 
         return jsonify({
             "success": True,
@@ -119,12 +159,11 @@ def add_to_cart_db():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-# 3. Fetch Active Cart Items
+# 3. Fetch Active Cart Items with Bill Breakdown
 @app.route("/api/cart", methods=["GET"])
 def get_active_cart():
-    """Fetches all items currently in 'ACTIVE_CART' from cart table."""
     try:
-        conn = get_db_connection()
+        conn = get_db()
         cursor = conn.cursor()
         cursor.execute("""
             SELECT product_name, quantity, total_price 
@@ -134,43 +173,61 @@ def get_active_cart():
         rows = [dict(r) for r in cursor.fetchall()]
         conn.close()
 
-        subtotal = sum(r["total_price"] for r in rows)
+        subtotal = round(sum(r["total_price"] for r in rows), 2)
         total_items = sum(r["quantity"] for r in rows)
+
+        if subtotal > 0:
+            gst_tax = round(subtotal * 0.05, 2)  # 5% GST on groceries
+            delivery_fee = 0.00 if subtotal >= 499.0 else 40.00
+            grand_total = round(subtotal + gst_tax + delivery_fee, 2)
+        else:
+            gst_tax = 0.00
+            delivery_fee = 0.00
+            grand_total = 0.00
 
         return jsonify({
             "success": True,
             "items": rows,
-            "subtotal": round(subtotal, 2),
+            "subtotal": subtotal,
+            "gst_tax": gst_tax,
+            "delivery_fee": delivery_fee,
+            "grand_total": grand_total,
             "total_items": total_items
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-# 4. Create Order & Lock Cart Items (Status: PENDING)
+# 4. Create Order & Process with Razorpay Gateway
 @app.route("/api/create-order", methods=["POST"])
 def create_order():
     """
-    Finalizes the 'ACTIVE_CART' items into a real order in `orders` table.
-    Updates `cart` table rows from order_id = 'ACTIVE_CART' -> order_id = 'ORD_XXXX'.
-    Order status is set to PENDING.
-    Does NOT touch `payments` table.
+    1. Computes exact Grand Total = Subtotal + 5% GST + Delivery Fee.
+    2. Creates order in `orders` table with status PENDING and the Grand Total.
+    3. Converts 'ACTIVE_CART' items to the new `order_id` in `cart` table.
+    4. Calls Razorpay Gateway (Port 5051).
+    5. Updates status to FULFILLED upon receiving Gateway ACK.
     """
     try:
         data = request.get_json(force=True) or {}
         customer_name = str(data.get("customer_name", "Priya Patel"))
-        gross_amount = float(data.get("gross_amount", 0.0))
+        simulate_dropped_ack = bool(data.get("simulate_dropped_ack", False))
+        simulate_fee_overcharge = bool(data.get("simulate_fee_overcharge", False))
 
-        conn = get_db_connection()
+        conn = get_db()
         cursor = conn.cursor()
 
-        # Check if ACTIVE_CART has items
-        cursor.execute("SELECT COUNT(*) FROM cart WHERE order_id = 'ACTIVE_CART';")
-        active_items_count = cursor.fetchone()[0]
-
-        if active_items_count == 0:
+        # Fetch active cart items and compute bill
+        cursor.execute("SELECT total_price FROM cart WHERE order_id = 'ACTIVE_CART';")
+        active_rows = cursor.fetchall()
+        if not active_rows:
             conn.close()
             return jsonify({"success": False, "error": "Active cart is empty in database"}), 400
+
+        subtotal = round(sum(r[0] for r in active_rows), 2)
+        gst_tax = round(subtotal * 0.05, 2)  # 5% GST on grocery items
+        delivery_fee = 0.00 if subtotal >= 499.0 else 40.00
+        gross_grand_total = round(subtotal + gst_tax + delivery_fee, 2)
 
         # Generate next safe unique order_id
         cursor.execute("SELECT order_id FROM orders;")
@@ -189,30 +246,72 @@ def create_order():
         order_id = f"ORD_{max_num + 1}"
         created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # 1. Insert into `orders` table (Status: PENDING)
+        # Step A: Insert into `orders` table (Gross Amount = Grand Total with Tax + Delivery)
         cursor.execute("""
             INSERT INTO orders (order_id, customer_name, gross_amount, order_status, created_at)
             VALUES (?, ?, ?, 'PENDING', ?);
-        """, (order_id, customer_name, gross_amount, created_at))
+        """, (order_id, customer_name, gross_grand_total, created_at))
 
-        # 2. Update `cart` table rows from 'ACTIVE_CART' to the new order_id
+        # Step B: Link cart items to this order_id
         cursor.execute("""
             UPDATE cart 
             SET order_id = ? 
             WHERE order_id = 'ACTIVE_CART';
         """, (order_id,))
-
         conn.commit()
-        conn.close()
 
-        print(f"[SUCCESS] Order Finalized: {order_id} | Customer: {customer_name} | Total: INR {gross_amount:,.2f} | Status: PENDING")
+        print(f"[STORE DB] Order Created: {order_id} | Subtotal: INR {subtotal:,.2f} + Tax: INR {gst_tax:,.2f} + Delivery: INR {delivery_fee:,.2f} = Grand Total: INR {gross_grand_total:,.2f} | Status: PENDING")
+
+        # Step C: Send Grand Total to Razorpay Gateway (Port 5051)
+        gateway_payload = {
+            "order_id": order_id,
+            "gross_amount": gross_grand_total,
+            "customer_name": customer_name,
+            "simulate_dropped_ack": simulate_dropped_ack,
+            "simulate_fee_overcharge": simulate_fee_overcharge
+        }
+
+        gateway_ack = None
+        try:
+            req = urllib.request.Request(
+                RAZORPAY_GATEWAY_URL,
+                data=json.dumps(gateway_payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                gateway_ack = json.loads(resp.read().decode("utf-8"))
+        except Exception as gw_err:
+            print(f"[GATEWAY WARNING] Gateway communication error/dropped ACK: {gw_err}")
+
+        # Step D: Check Gateway Acknowledgment
+        if gateway_ack and gateway_ack.get("success"):
+            cursor.execute("""
+                UPDATE orders 
+                SET order_status = 'FULFILLED' 
+                WHERE order_id = ?;
+            """, (order_id,))
+            conn.commit()
+            final_status = "FULFILLED"
+            payment_id = gateway_ack.get("payment_id")
+            print(f"[SUCCESS] Gateway ACK Received! {order_id} FULFILLED ({payment_id})")
+        else:
+            final_status = "PENDING"
+            payment_id = None
+            print(f"[WARNING] No ACK received for {order_id}. Order remains PENDING!")
+
+        conn.close()
 
         return jsonify({
             "success": True,
             "order_id": order_id,
             "customer_name": customer_name,
-            "gross_amount": gross_amount,
-            "status": "PENDING"
+            "subtotal": subtotal,
+            "gst_tax": gst_tax,
+            "delivery_fee": delivery_fee,
+            "gross_amount": gross_grand_total,
+            "order_status": final_status,
+            "payment_id": payment_id,
+            "gateway_ack": gateway_ack
         })
 
     except Exception as e:
@@ -220,12 +319,11 @@ def create_order():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-# 5. Simple Status Endpoint to View Orders in DB
+# 5. Helper to view orders
 @app.route("/api/orders", methods=["GET"])
 def view_orders():
-    """Helper to inspect all orders recorded in store.db."""
     try:
-        conn = get_db_connection()
+        conn = get_db()
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM orders ORDER BY rowid DESC;")
         orders = [dict(r) for r in cursor.fetchall()]
@@ -236,9 +334,10 @@ def view_orders():
 
 
 if __name__ == "__main__":
+    ensure_db_schema()
     print("=================================================================")
-    print(f" FreshMart Backend Server Running at: http://127.0.0.1:{PORT}")
+    print(f" FreshMart Storefront Server Running at: http://127.0.0.1:{PORT}")
     print(f" Connected DB: {DB_PATH}")
-    print(f" Serving UI: {STATIC_DIR}")
+    print(f" Razorpay Gateway Target: {RAZORPAY_GATEWAY_URL}")
     print("=================================================================")
     app.run(host="127.0.0.1", port=PORT, debug=False)
