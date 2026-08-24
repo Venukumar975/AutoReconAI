@@ -80,6 +80,7 @@ const Uploader = (() => {
       if (fill1) fill1.style.width = '50%';
 
       App.checkPipelineReady();
+      if (typeof AIAssistant !== 'undefined') AIAssistant.updateIngestionProgress(1);
 
     } catch (e) {
       alert(`Network error uploading orders: ${e.message}`);
@@ -233,6 +234,7 @@ const Uploader = (() => {
       if (fill3) fill3.style.width = '100%';
 
       App.checkPipelineReady();
+      if (typeof AIAssistant !== 'undefined') AIAssistant.updateIngestionProgress(3);
 
     } catch (e) {
       alert(`Network error uploading settlement CSV: ${e.message}`);

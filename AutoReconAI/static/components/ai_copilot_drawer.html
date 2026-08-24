@@ -1,0 +1,54 @@
+<!-- Clean Floating AI Copilot FAB Button -->
+<div class="cute-ai-fab-container">
+  <button class="cute-ai-fab" id="btn-toggle-ai-copilot" title="AI Finance Copilot">
+    <span class="cute-bot-emoji">🤖</span>
+  </button>
+</div>
+
+<!-- Full-Height Clean Slide-Over AI Copilot Drawer (Resizable to Left) -->
+<aside class="ai-copilot-drawer" id="ai-copilot-drawer">
+  <!-- Draggable Resizer Bar on Left Edge -->
+  <div class="ai-drawer-resizer" id="ai-drawer-resizer" title="Drag left/right to resize drawer">
+    <div class="resizer-handle-line"></div>
+  </div>
+
+  <div class="ai-drawer-header">
+    <div class="ai-header-title">
+      <span>🤖</span>
+      <div>
+        <div class="ai-title-text">AutoReconAI Copilot</div>
+        <div class="ai-status-sub">🟢 Multi-Agent Financial Controller</div>
+      </div>
+    </div>
+    <div class="ai-header-actions">
+      <button class="ai-drawer-expand-btn" id="btn-toggle-ai-expand" title="Expand / Shrink View">⇄</button>
+      <button class="ai-drawer-close" id="btn-close-ai-drawer" title="Close AI Drawer">✕</button>
+    </div>
+  </div>
+
+  <!-- Pre-Defined Interactive Question Prompts Bar -->
+  <div class="ai-action-chips-bar">
+    <span class="ai-chips-title">Quick Audit Questions:</span>
+    <button class="ai-chip-btn" id="chip-ai-audit">1. Why are some Order IDs mismatched?</button>
+    <button class="ai-chip-btn" id="chip-ai-dispute">2. Draft Razorpay Dispute Claim Ticket</button>
+    <button class="ai-chip-btn" id="chip-ai-summary">3. Show Financial Recovery Summary</button>
+  </div>
+
+  <!-- Chat Messages Feed -->
+  <div class="ai-chat-feed" id="ai-chat-feed">
+    <!-- Initial Greeting Message -->
+    <div class="ai-msg-box">
+      <div class="ai-bot-avatar">🤖</div>
+      <div class="ai-msg-content">
+        <div class="ai-msg-header">Hello! I am your AI Finance Controller.</div>
+        <p>I am powered by a specialized agent pipeline: <strong>IngestionGatekeeperAI</strong> (Data Validator), <strong>SentinelRouterAI</strong> (Intent Tagger), and <strong>ReconAuditorAI</strong> (Tool-Calling Audit Agent). Type any question or select a prompt above to audit your ledger batch!</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat Input Area -->
+  <div class="ai-chat-input-container">
+    <input type="text" id="ai-chat-input" class="ai-chat-input" placeholder="Type a question or order ID (e.g. ORD_1002)..." />
+    <button id="btn-ai-send" class="btn-ai-send">➔</button>
+  </div>
+</aside>

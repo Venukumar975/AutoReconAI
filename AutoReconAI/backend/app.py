@@ -23,6 +23,9 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
 sys.path.insert(0, CURRENT_DIR)
 
+from ai_engine import AIFinanceEngine
+from config_loader import GatewayConfig
+
 from parsers.pdf_parser import detect_and_extract_pdf_table, parse_mapped_pdf_transactions
 from parsers.excel_parser import detect_and_extract_excel_table, parse_mapped_excel_transactions
 from parsers.csv_parser import parse_orders_csv, parse_settlement_csv
@@ -324,6 +327,10 @@ def generate_linked_grid():
         matched_orders_count = 0
         total_orders_count = 0
 
+        contracted_mdr = GatewayConfig.get_mdr_rate()
+        gst_rate = GatewayConfig.get_gst_rate()
+        mdr_threshold = contracted_mdr + 0.0005
+
         for utr, s_list in utr_groups_dict.items():
             group_gross = sum(s["amount"] for s in s_list)
             group_fee = sum(s["fee"] for s in s_list)
@@ -365,9 +372,9 @@ def generate_linked_grid():
                 else:
                     formatted_date = "-"
 
-                # Detect 3 Core Edge Case Mismatches
+                # Detect 3 Core Edge Case Mismatches dynamically against config
                 fee_rate = (s["fee"] / s["amount"]) if s["amount"] > 0 else 0.0
-                is_fee_overcharged = (fee_rate > 0.0205)
+                is_fee_overcharged = (fee_rate > mdr_threshold)
                 is_webhook_pending = (order_status == "PENDING")
                 is_orphan_refund = (oid not in orders_by_id or s["net_credit"] < 0)
 
@@ -436,11 +443,44 @@ def generate_linked_grid():
                 "total_bank_deposited": round(total_bank_deposited, 2),
                 "matched_count": matched_orders_count,
                 "mismatched_count": mismatched_count,
-                "match_rate": f"{match_rate}%"
+                "match_rate": f"{match_rate}%",
+                "contracted_mdr_percent": round(contracted_mdr * 100, 2),
+                "gst_rate_percent": round(gst_rate * 100, 2),
+                "sla_text": GatewayConfig.get_sla_text()
             },
             "utr_groups": grouped_utr_list
         })
 
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/ai/audit-summary", methods=["GET"])
+def get_ai_audit_summary():
+    from ai_engine import ReconToolbox
+    res = ReconToolbox.get_reconciliation_overview(SESSION_DATA)
+    return jsonify({"success": True, "data": res})
+
+
+@app.route("/api/ai/chat", methods=["POST"])
+def ai_chat_handler():
+    try:
+        body = request.get_json() or {}
+        user_query = body.get("query", "Audit reconciliation batch and explain all mismatches.")
+        res = AIFinanceEngine.execute_pipeline(user_query, SESSION_DATA)
+        return jsonify(res)
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/unpacker/generate-report", methods=["POST"])
+def generate_unpacker_report():
+    try:
+        from settlement_unpacker import SettlementUnpackerEngine
+        res = SettlementUnpackerEngine.unpack_settlements(SESSION_DATA)
+        return jsonify(res)
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500

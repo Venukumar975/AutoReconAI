@@ -17,10 +17,27 @@ const VisualLinks = (() => {
       document.getElementById('kpi-fees').innerText = `₹${data.summary.total_fees.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
       document.getElementById('kpi-gst').innerText = `₹${data.summary.total_gst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
       document.getElementById('kpi-match-rate').innerText = data.summary.match_rate;
+
+      if (data.summary.contracted_mdr_percent) {
+        const mdrLabel = document.getElementById('kpi-mdr-label');
+        if (mdrLabel) mdrLabel.innerText = `MDR Fees (${data.summary.contracted_mdr_percent}%)`;
+        const thMdr = document.getElementById('th-mdr-label');
+        if (thMdr) thMdr.innerText = `MDR (${data.summary.contracted_mdr_percent}%)`;
+      }
+      if (data.summary.gst_rate_percent) {
+        const gstLabel = document.getElementById('kpi-gst-label');
+        if (gstLabel) gstLabel.innerText = `GST on MDR (${data.summary.gst_rate_percent}%)`;
+        const thGst = document.getElementById('th-gst-label');
+        if (thGst) thGst.innerText = `GST (${data.summary.gst_rate_percent}%)`;
+      }
     }
 
     totalGroupsBadge.innerText = `${data.utr_groups.length} Settlement Batches`;
     tbody.innerHTML = '';
+
+    if (typeof AIAssistant !== 'undefined' && data.summary) {
+      AIAssistant.updateReconStatus(data.summary.mismatched_count || 0);
+    }
 
     // Render Table Rows grouped by Settlement UTR
     data.utr_groups.forEach(group => {

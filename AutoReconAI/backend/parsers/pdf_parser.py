@@ -31,23 +31,25 @@ def detect_and_extract_pdf_table(pdf_path: str) -> Tuple[List[str], List[List[st
                 if not table or len(table) < 2:
                     continue
 
-                header_candidate = [c.replace("\n", " ").strip() if c else "" for c in table[0]]
-                non_empty_cols = [c for c in header_candidate if c]
-
-                if len(non_empty_cols) >= 5:
-                    if not detected_headers:
+                if not detected_headers:
+                    header_candidate = [c.replace("\n", " ").strip() if c else "" for c in table[0]]
+                    non_empty_cols = [c for c in header_candidate if c]
+                    if len(non_empty_cols) >= 5:
                         detected_headers = header_candidate
                         for row in table[1:]:
                             clean_row = [c.replace("\n", " ").strip() if c else "" for c in row]
                             if any(clean_row):
                                 all_rows.append(clean_row)
-                    else:
-                        for row in table:
-                            clean_row = [c.replace("\n", " ").strip() if c else "" for c in row]
-                            if clean_row == detected_headers or clean_row == header_candidate:
-                                continue
-                            if any(clean_row):
-                                all_rows.append(clean_row)
+                else:
+                    norm_detected = [h.strip().lower() for h in detected_headers if h]
+                    for row in table:
+                        clean_row = [c.replace("\n", " ").strip() if c else "" for c in row]
+                        norm_row = [c.strip().lower() for c in clean_row if c]
+                        # Only skip if this row is an exact repeated header text
+                        if norm_row and norm_row == norm_detected:
+                            continue
+                        if any(clean_row):
+                            all_rows.append(clean_row)
 
         # Regex scan for Opening Balance in statement text
         op_match = re.search(r'(?:opening\s*balance|op\s*bal|opening\s*bal|b/f\s*balance)\s*[:=]?\s*(?:rs\.?|inr|₹)?\s*([0-9,]+(?:\.[0-9]{1,2})?)', full_text, re.IGNORECASE)

@@ -52,7 +52,7 @@ def check_servers_online():
         print("  [OK] Razorpay Payment Gateway is ONLINE (Port 5051)")
     except Exception:
         print("  [ERROR] Razorpay Gateway Server (Port 5051) is offline!")
-        print("  Please run in a separate terminal: python razorpay_server.py")
+        print("  Please run: python run_razorpay_suite.py  (or python AutoReconAI/backend/gateway_server.py)")
         return False
 
     return True

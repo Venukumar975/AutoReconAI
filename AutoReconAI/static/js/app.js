@@ -7,6 +7,7 @@ const App = (() => {
 
   function init() {
     Uploader.init();
+    AIAssistant.init();
     checkServerStatus();
 
     // Reset Session
@@ -23,6 +24,13 @@ const App = (() => {
         proceedToReconciliation();
       }
     });
+    document.getElementById('nav-unpacker').addEventListener('click', () => {
+      const navUnpacker = document.getElementById('nav-unpacker');
+      if (!navUnpacker.classList.contains('disabled')) {
+        switchView('unpacker');
+        SettlementUnpacker.loadAndRenderReport();
+      }
+    });
 
     // Mapping Modal Handlers
     document.getElementById('btn-close-mapping-modal').addEventListener('click', MapperModal.close);
@@ -33,24 +41,34 @@ const App = (() => {
   function switchView(viewName) {
     const viewIngestion = document.getElementById('view-ingestion');
     const viewRecon = document.getElementById('view-recon');
+    const viewUnpacker = document.getElementById('view-unpacker');
+
     const navIngestion = document.getElementById('nav-ingestion');
     const navRecon = document.getElementById('nav-recon');
+    const navUnpacker = document.getElementById('nav-unpacker');
     const breadcrumbCurrent = document.getElementById('breadcrumb-current-text');
+
+    // Hide all views first
+    viewIngestion.classList.add('hidden-view');
+    viewRecon.classList.add('hidden-view');
+    viewUnpacker.style.display = 'none';
+
+    navIngestion.classList.remove('active');
+    navRecon.classList.remove('active');
+    navUnpacker.classList.remove('active');
 
     if (viewName === 'ingestion') {
       viewIngestion.classList.remove('hidden-view');
-      viewRecon.classList.add('hidden-view');
-
       navIngestion.classList.add('active');
-      navRecon.classList.remove('active');
       if (breadcrumbCurrent) breadcrumbCurrent.innerText = 'Sequential File Ingestion & Mapping';
     } else if (viewName === 'recon') {
-      viewIngestion.classList.add('hidden-view');
       viewRecon.classList.remove('hidden-view');
-
-      navIngestion.classList.remove('active');
       navRecon.classList.add('active');
       if (breadcrumbCurrent) breadcrumbCurrent.innerText = '3-Way Reconciliation & UTR Container Matrix';
+    } else if (viewName === 'unpacker') {
+      viewUnpacker.style.display = 'block';
+      navUnpacker.classList.add('active');
+      if (breadcrumbCurrent) breadcrumbCurrent.innerText = 'Settlement Unpacker & Tax/Sales Executive Hub';
     }
   }
 
@@ -76,17 +94,29 @@ const App = (() => {
       const proceedBtn = document.getElementById('btn-proceed-recon');
       const proceedSubtext = document.getElementById('proceed-subtext');
       const navRecon = document.getElementById('nav-recon');
+      const navUnpacker = document.getElementById('nav-unpacker');
 
       if (state.has_orders && state.has_bank_statement && state.has_settlement) {
         proceedBtn.disabled = false;
         proceedSubtext.innerText = '✅ All 3 files uploaded & verified. Click to inspect the 3-Way Reconciliation Matrix!';
         proceedSubtext.style.color = 'var(--accent-green)';
         
-        // Unlock sidebar tab
+        // Unlock sidebar tabs
         navRecon.classList.remove('disabled');
-        navRecon.querySelector('.nav-badge').innerText = 'Ready';
-        navRecon.querySelector('.nav-badge').style.backgroundColor = 'var(--accent-green)';
-        navRecon.querySelector('.nav-badge').style.color = '#ffffff';
+        const badgeRecon = document.getElementById('badge-recon');
+        if (badgeRecon) {
+          badgeRecon.innerText = 'Ready';
+          badgeRecon.style.backgroundColor = 'var(--accent-green)';
+          badgeRecon.style.color = '#ffffff';
+        }
+
+        navUnpacker.classList.remove('disabled');
+        const badgeUnpacker = document.getElementById('badge-unpacker');
+        if (badgeUnpacker) {
+          badgeUnpacker.innerText = 'Ready';
+          badgeUnpacker.style.backgroundColor = '#0284c7';
+          badgeUnpacker.style.color = '#ffffff';
+        }
       } else {
         proceedBtn.disabled = true;
       }

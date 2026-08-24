@@ -162,39 +162,43 @@ def apply_edge_case_mutations(config):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
-    # 1. Edge Case 1: Dropped Webhook (Set N orders to PENDING)
+    # 1. Edge Case 1: Dropped Webhook (Pick N completely random orders to set to PENDING)
     dropped_count = config.getint("EDGE_CASES", "dropped_webhook_count", fallback=2)
     if dropped_count > 0:
-        cursor.execute("SELECT order_id FROM orders WHERE order_status = 'FULFILLED' ORDER BY order_id DESC LIMIT ?;", (dropped_count,))
+        cursor.execute("SELECT order_id FROM orders WHERE order_status = 'FULFILLED' ORDER BY RANDOM() LIMIT ?;", (dropped_count,))
         target_orders = [r["order_id"] for r in cursor.fetchall()]
         for oid in target_orders:
             cursor.execute("UPDATE orders SET order_status = 'PENDING' WHERE order_id = ?;", (oid,))
-        print(f"[MUTATOR] Edge Case 1 Applied: Set {len(target_orders)} orders ({', '.join(target_orders)}) to PENDING status.")
+        print(f"[MUTATOR] Edge Case 1 Applied: Set {len(target_orders)} random orders ({', '.join(target_orders)}) to PENDING status.")
 
-    # 2. Edge Case 2: Gateway Fee Overcharge (Overcharge N payments at ~2.75% MDR)
+    # 2. Edge Case 2: Gateway Fee Overcharge (Pick N completely random payments to overcharge dynamically)
     fee_overcharge_count = config.getint("EDGE_CASES", "fee_overcharge_count", fallback=3)
+    base_mdr = config.getfloat("CONTRACTED_RATES", "mdr_rate_percent", fallback=2.0) / 100.0
+    gst_rate = config.getfloat("CONTRACTED_RATES", "gst_rate_percent", fallback=18.0) / 100.0
+
     if fee_overcharge_count > 0:
-        cursor.execute("SELECT payment_id, amount FROM payments ORDER BY payment_id ASC LIMIT ?;", (fee_overcharge_count,))
+        cursor.execute("SELECT payment_id, amount FROM payments ORDER BY RANDOM() LIMIT ?;", (fee_overcharge_count,))
         target_payments = cursor.fetchall()
         for p in target_payments:
             amt = p["amount"]
-            overcharge_rate = 0.02 + random.uniform(0.005, 0.0075)  # ~2.75%
+            # Dynamically bill +0.50% to +0.75% above the contracted SLA
+            overcharge_rate = base_mdr + random.uniform(0.005, 0.0075)
             fee = round(amt * overcharge_rate, 2)
-            tax = round(fee * 0.18, 2)
+            tax = round(fee * gst_rate, 2)
             net_credit = round(amt - fee - tax, 2)
             cursor.execute("""
                 UPDATE payments 
                 SET fee = ?, tax = ?, net_credit = ? 
                 WHERE payment_id = ?;
             """, (fee, tax, net_credit, p["payment_id"]))
-        print(f"[MUTATOR] Edge Case 2 Applied: Overcharged {len(target_payments)} payments with ~2.75% MDR.")
+        print(f"[MUTATOR] Edge Case 2 Applied: Overcharged {len(target_payments)} random payments with rates between {(base_mdr+0.005)*100:.2f}% and {(base_mdr+0.0075)*100:.2f}%.")
 
-    # 3. Edge Case 3: Orphan Customer Refund (-₹1,200 prior-period deduction)
+    # 3. Edge Case 3: Orphan Customer Refund (-₹1,200 prior-period deduction under random UTR)
     orphan_count = config.getint("EDGE_CASES", "orphan_refund_count", fallback=1)
     if orphan_count > 0:
-        cursor.execute("SELECT settlement_utr FROM payments LIMIT 1;")
+        cursor.execute("SELECT settlement_utr FROM payments ORDER BY RANDOM() LIMIT 1;")
         ref_row = cursor.fetchone()
-        utr_target = ref_row["settlement_utr"] if ref_row else "CMS202609151081"
+        utr_target = ref_row["settlement_utr"] if ref_row else "CMS202605011081"
         for i in range(1, orphan_count + 1):
             pid = f"pay_REFUND_{random.randint(100, 999)}"
             old_oid = f"ORD_PRIOR_{900 + i}"
@@ -202,7 +206,7 @@ def apply_edge_case_mutations(config):
                 INSERT OR REPLACE INTO payments (payment_id, order_id, amount, fee, tax, net_credit, settlement_utr, status)
                 VALUES (?, ?, 0.00, 0.00, 0.00, -1200.00, ?, 'captured');
             """, (pid, old_oid, utr_target))
-        print(f"[MUTATOR] Edge Case 3 Applied: Inserted {orphan_count} orphan refund deduction (-INR 1,200.00) under UTR {utr_target}.")
+        print(f"[MUTATOR] Edge Case 3 Applied: Inserted {orphan_count} orphan refund deduction (-INR 1,200.00) under random UTR {utr_target}.")
 
     conn.commit()
     conn.close()

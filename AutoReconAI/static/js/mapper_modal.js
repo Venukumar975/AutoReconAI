@@ -122,6 +122,7 @@ const MapperModal = (() => {
       }
 
       close();
+      if (typeof AIAssistant !== 'undefined') AIAssistant.updateIngestionProgress(2);
       if (onMappingAppliedCallback) {
         onMappingAppliedCallback(res);
       }
