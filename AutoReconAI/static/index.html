@@ -14,6 +14,9 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/ai_assistant.css">
   <link rel="stylesheet" href="css/settlement_unpacker.css">
+  
+  <!-- Chart.js for Financial Data Visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
@@ -338,20 +341,34 @@
             <div class="unpacker-header-card">
               <div class="unpacker-title-group">
                 <h2>⚡ Settlement Unpacker & Tax/Sales Executive Hub</h2>
-                <p>Granular breakdown of lumped gateway settlements, MDR deductions, and claimable GST Input Tax Credit.</p>
+                <p>Visual allocation of gross sales, net bank deposits, gateway fees, and 18% GST Input Tax Credit (ITC).</p>
               </div>
               <div class="unpacker-sla-badge" id="unpacker-sla-badge">
                 <span>📜</span>
-                <span id="unpacker-sla-text">Contracted SLA: 2.00% MDR + 18% GST</span>
+                <span id="unpacker-sla-text">Contracted SLA: 2.50% MDR + 18% GST</span>
               </div>
             </div>
 
-            <!-- 2. 4 Core Pillars Grid -->
+            <!-- 2. Hero Interactive Financial Allocation Bar Chart (Prominently First) -->
+            <div class="unpacker-chart-card">
+              <div class="chart-header">
+                <div class="chart-title">
+                  <span>📊</span>
+                  <span>Financial Settlement Allocation Chart (Values & % of Total Gross Sales)</span>
+                </div>
+                <span class="chart-subtitle" id="chart-take-rate-pill">Effective Gateway Take-Rate: 2.96%</span>
+              </div>
+              <div class="chart-canvas-wrapper" style="position: relative; height: 320px;">
+                <canvas id="unpacker-chart-canvas"></canvas>
+              </div>
+            </div>
+
+            <!-- 3. 4 Core Pillars Grid -->
             <div class="unpacker-pillars-grid">
               <div class="pillar-card gmv">
                 <span class="pillar-label">💰 Net Gross Sales (GMV)</span>
                 <span class="pillar-amount" id="unpacker-gmv">₹0.00</span>
-                <span class="pillar-subtext">Total customer checkout value across all verified orders</span>
+                <span class="pillar-subtext">Total customer checkout value across all verified orders (100%)</span>
               </div>
               <div class="pillar-card payout">
                 <span class="pillar-label">🏦 Net Bank Deposited</span>
@@ -371,21 +388,23 @@
               </div>
             </div>
 
-            <!-- 3. Proportional Visual Flow Bar -->
+            <!-- Proportional Visual Flow Bar -->
             <div class="unpacker-flow-container">
               <div class="flow-header">
-                <span class="flow-title">📊 Gross Sales Revenue Distribution ($100 Proportional Split)</span>
-                <span style="font-size: 13px; color: #64748b;" id="flow-take-rate-text">Effective Gateway Take-Rate: 2.36%</span>
+                <span class="flow-title">⚖️ Proportional Revenue Split (Per ₹100 of Gross Sales = Exactly ₹100.00)</span>
+                <span style="font-size: 13px; color: #64748b;" id="flow-take-rate-text">Effective Gateway Take-Rate: 2.96%</span>
               </div>
               <div class="flow-bar">
-                <div class="flow-segment net" id="flow-net" style="width: 97.64%;" title="Net Deposited"></div>
-                <div class="flow-segment mdr" id="flow-mdr" style="width: 2.00%;" title="MDR Expense"></div>
-                <div class="flow-segment gst" id="flow-gst" style="width: 0.36%;" title="GST ITC"></div>
+                <div class="flow-segment net" id="flow-net" style="width: 93.64%;" title="Net Deposited"></div>
+                <div class="flow-segment mdr" id="flow-mdr" style="width: 2.51%;" title="MDR Expense"></div>
+                <div class="flow-segment gst" id="flow-gst" style="width: 0.45%;" title="GST ITC"></div>
+                <div class="flow-segment refunds" id="flow-refunds" style="width: 3.40%;" title="Customer Refunds"></div>
               </div>
               <div class="flow-legend">
-                <div class="legend-item"><div class="legend-dot net"></div><span id="legend-net-label">Net Bank Payout: 97.64%</span></div>
-                <div class="legend-item"><div class="legend-dot mdr"></div><span id="legend-mdr-label">Gateway MDR Fee: 2.00%</span></div>
-                <div class="legend-item"><div class="legend-dot gst"></div><span id="legend-gst-label">Claimable GST ITC: 0.36%</span></div>
+                <div class="legend-item"><div class="legend-dot net"></div><span id="legend-net-label">Net Bank Payout: 93.64%</span></div>
+                <div class="legend-item"><div class="legend-dot mdr"></div><span id="legend-mdr-label">Gateway MDR Fee: 2.51%</span></div>
+                <div class="legend-item"><div class="legend-dot gst"></div><span id="legend-gst-label">Claimable GST ITC: 0.45%</span></div>
+                <div class="legend-item"><div class="legend-dot refunds"></div><span id="legend-refunds-label">Customer Refunds: 3.40%</span></div>
               </div>
             </div>
 

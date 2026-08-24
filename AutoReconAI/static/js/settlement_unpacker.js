@@ -12,6 +12,7 @@
 const SettlementUnpacker = (() => {
 
   let isLoaded = false;
+  let chartInstance = null;
 
   async function loadAndRenderReport() {
     const skeleton = document.getElementById('unpacker-skeleton');
@@ -39,6 +40,8 @@ const SettlementUnpacker = (() => {
       }
 
       renderPillars(data);
+      renderExecutiveSummary(data);
+      renderFinancialChart(data);
       renderFlowBar(data);
       renderBuckets(data);
       renderFAQs(data);
@@ -72,22 +75,187 @@ const SettlementUnpacker = (() => {
     document.getElementById('unpacker-mdr-sub').innerText = `${p.proportions?.mdr_expense_percent || 0}% gateway processing fee deducted`;
   }
 
+  function renderExecutiveSummary(data) {
+    const summaryEl = document.getElementById('unpacker-executive-summary');
+    const badgeEl = document.getElementById('unpacker-agent-badge');
+    const takeRatePill = document.getElementById('chart-take-rate-pill');
+
+    if (summaryEl) {
+      summaryEl.innerText = data.executive_summary || 'Settlement batch successfully unpacked and verified.';
+    }
+    if (badgeEl && data.generated_by) {
+      badgeEl.innerText = `🏷️ ${data.generated_by}`;
+    }
+    if (takeRatePill && data.unpacked_pillars?.proportions) {
+      const totalTake = (data.unpacked_pillars.proportions.mdr_expense_percent + data.unpacked_pillars.proportions.gst_itc_percent).toFixed(2);
+      takeRatePill.innerText = `Effective Gateway Take-Rate: ${totalTake}%`;
+    }
+  }
+
+  function renderFinancialChart(data) {
+    const canvas = document.getElementById('unpacker-chart-canvas');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const ctx = canvas.getContext('2d');
+    const p = data.unpacked_pillars || {};
+
+    if (chartInstance) {
+      chartInstance.destroy();
+    }
+
+    const topLabelsPlugin = {
+      id: 'topLabelsPlugin',
+      afterDatasetsDraw(chart) {
+        const { ctx, data } = chart;
+        const gmv = p.total_gmv || 1;
+
+        chart.getDatasetMeta(0).data.forEach((bar, index) => {
+          const val = data.datasets[0].data[index];
+          if (val === undefined) return;
+          const pct = ((val / gmv) * 100).toFixed(2);
+          const textVal = `₹${val.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+          const textPct = `(${pct}%)`;
+
+          ctx.save();
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          
+          // Draw Amount Label
+          ctx.font = 'bold 12px Inter, sans-serif';
+          ctx.fillStyle = '#0f172a';
+          ctx.fillText(textVal, bar.x, bar.y - 16);
+
+          // Draw Percentage Label
+          ctx.font = '600 11.5px JetBrains Mono, monospace';
+          ctx.fillStyle = index === 0 ? '#1d4ed8' : (index === 1 ? '#047857' : (index === 2 ? '#b45309' : (index === 3 ? '#6d28d9' : '#be123c')));
+          ctx.fillText(textPct, bar.x, bar.y - 2);
+
+          ctx.restore();
+        });
+      }
+    };
+
+    chartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: [
+          'Gross Sales (GMV)',
+          'Net Bank Deposited',
+          'Gateway MDR Fee',
+          'Claimable 18% GST (ITC)',
+          'Customer Return Refunds'
+        ],
+        datasets: [{
+          label: 'Amount (INR ₹)',
+          data: [
+            p.total_gmv || 0,
+            p.net_bank_payout || 0,
+            p.total_mdr_expense || 0,
+            p.total_gst_itc || 0,
+            p.total_customer_refunds || 0
+          ],
+          backgroundColor: [
+            'rgba(59, 130, 246, 0.85)',   // Blue (GMV)
+            'rgba(16, 185, 129, 0.85)',   // Green (Net Bank)
+            'rgba(245, 158, 11, 0.85)',   // Amber (MDR)
+            'rgba(139, 92, 246, 0.85)',   // Purple (GST ITC)
+            'rgba(244, 63, 94, 0.85)'     // Rose (Refunds)
+          ],
+          borderColor: [
+            '#2563eb',
+            '#059669',
+            '#d97706',
+            '#7c3aed',
+            '#e11d48'
+          ],
+          borderWidth: 1.5,
+          borderRadius: 8,
+          barPercentage: 0.55
+        }]
+      },
+      plugins: [topLabelsPlugin],
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: {
+          padding: {
+            top: 36
+          }
+        },
+        animation: {
+          duration: 900,
+          easing: 'easeOutQuart'
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#0c2340',
+            titleFont: { size: 13, weight: '700' },
+            bodyFont: { size: 13 },
+            padding: 12,
+            cornerRadius: 8,
+            callbacks: {
+              label: function(context) {
+                const val = context.raw || 0;
+                const gmv = p.total_gmv || 1;
+                const pct = ((val / gmv) * 100).toFixed(2);
+                return ` INR ₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2 })} (${pct}% of Total Gross Sales)`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: {
+              font: { weight: '600', size: 12 },
+              color: '#334155'
+            }
+          },
+          y: {
+            beginAtZero: true,
+            grid: { color: '#f1f5f9' },
+            ticks: {
+              callback: (val) => '₹' + (val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val),
+              color: '#64748b',
+              font: { size: 11 }
+            }
+          }
+        }
+      }
+    });
+  }
+
   function renderFlowBar(data) {
     const props = data.unpacked_pillars?.proportions || {};
-    const netPct = props.net_payout_percent || 97.64;
-    const mdrPct = props.mdr_expense_percent || 2.00;
-    const gstPct = props.gst_itc_percent || 0.36;
+    const netPct = props.net_payout_percent || 93.64;
+    const mdrPct = props.mdr_expense_percent || 2.51;
+    const gstPct = props.gst_itc_percent || 0.45;
+    const refundsPct = props.refunds_percent || 3.40;
 
-    document.getElementById('flow-net').style.width = `${netPct}%`;
-    document.getElementById('flow-mdr').style.width = `${mdrPct}%`;
-    document.getElementById('flow-gst').style.width = `${gstPct}%`;
+    const flowNet = document.getElementById('flow-net');
+    const flowMdr = document.getElementById('flow-mdr');
+    const flowGst = document.getElementById('flow-gst');
+    const flowRefunds = document.getElementById('flow-refunds');
 
-    document.getElementById('legend-net-label').innerText = `Net Bank Payout: ${netPct}%`;
-    document.getElementById('legend-mdr-label').innerText = `Gateway MDR Fee: ${mdrPct}%`;
-    document.getElementById('legend-gst-label').innerText = `Claimable GST ITC: ${gstPct}%`;
+    if (flowNet) flowNet.style.width = `${netPct}%`;
+    if (flowMdr) flowMdr.style.width = `${mdrPct}%`;
+    if (flowGst) flowGst.style.width = `${gstPct}%`;
+    if (flowRefunds) flowRefunds.style.width = `${refundsPct}%`;
+
+    const lblNet = document.getElementById('legend-net-label');
+    const lblMdr = document.getElementById('legend-mdr-label');
+    const lblGst = document.getElementById('legend-gst-label');
+    const lblRefunds = document.getElementById('legend-refunds-label');
+
+    if (lblNet) lblNet.innerText = `Net Bank Payout: ${netPct}%`;
+    if (lblMdr) lblMdr.innerText = `Gateway MDR Fee: ${mdrPct}%`;
+    if (lblGst) lblGst.innerText = `Claimable GST ITC: ${gstPct}%`;
+    if (lblRefunds) lblRefunds.innerText = `Customer Refunds: ${refundsPct}%`;
 
     const totalTakeRate = (mdrPct + gstPct).toFixed(2);
-    document.getElementById('flow-take-rate-text').innerText = `Effective Gateway Take-Rate: ${totalTakeRate}%`;
+    const takeRateText = document.getElementById('flow-take-rate-text');
+    if (takeRateText) takeRateText.innerText = `Effective Gateway Take-Rate: ${totalTakeRate}%`;
   }
 
   function renderBuckets(data) {
@@ -147,7 +315,7 @@ const SettlementUnpacker = (() => {
       item.className = 'faq-item';
       item.innerHTML = `
         <div class="faq-question" onclick="this.parentElement.querySelector('.faq-answer').style.display = this.parentElement.querySelector('.faq-answer').style.display === 'none' ? 'block' : 'none'">
-          <span>${idx + 1}. ${faq.question}</span>
+          <span>${faq.question}</span>
           <span style="font-size: 12px; color: #64748b;">▼</span>
         </div>
         <div class="faq-answer">
@@ -160,6 +328,10 @@ const SettlementUnpacker = (() => {
 
   function reset() {
     isLoaded = false;
+    if (chartInstance) {
+      chartInstance.destroy();
+      chartInstance = null;
+    }
   }
 
   return {

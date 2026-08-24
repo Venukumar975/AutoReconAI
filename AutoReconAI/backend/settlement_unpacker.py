@@ -121,26 +121,29 @@ class SettlementUnpackerEngine:
         net_payout_pct = round((total_net_payout / gmv_safe) * 100, 2)
         mdr_fee_pct = round((total_mdr_fee / gmv_safe) * 100, 2)
         gst_itc_pct = round((total_gst_itc / gmv_safe) * 100, 2)
+        effective_take_rate = round(((total_mdr_fee + total_gst_itc) / gmv_safe) * 100, 2)
 
-        # Financial Insights & FAQs
-        faqs = [
-            {
-                "question": "How do I claim the 18% GST Input Tax Credit (ITC) in my tax filings?",
-                "answer": f"Your payment gateway deducted ₹{total_gst_itc:,.2f} in 18% GST on processing fees. Under Indian GST law, this is 100% claimable as Input Tax Credit (ITC) under Section 16 of the CGST Act. In your monthly GSTR-3B filing (Table 4A - All other ITC), enter ₹{total_gst_itc:,.2f} to reduce your net tax payable to the government."
-            },
-            {
-                "question": "What is the net take-rate deducted by Razorpay across this entire batch?",
-                "answer": f"Across ₹{total_gmv:,.2f} in gross sales, total deductions were ₹{(total_mdr_fee + total_gst_itc):,.2f} (₹{total_mdr_fee:,.2f} MDR fee + ₹{total_gst_itc:,.2f} GST). Your effective overall gateway take-rate was {((total_mdr_fee + total_gst_itc) / gmv_safe * 100):.2f}% vs contracted SLA of {(GatewayConfig.get_effective_sla_rate() * 100):.2f}%."
-            },
-            {
-                "question": "Why are some orders pending in store while captured on the gateway?",
-                "answer": f"There are {len(dropped_webhook_orders)} dropped webhook orders. The gateway successfully captured funds and transferred them to your bank, but the HTTP webhook acknowledgment was dropped by network timeouts. You can safely release customer packages and mark them FULFILLED."
-            },
-            {
-                "question": "How much cash can I recover immediately via a gateway dispute ticket?",
-                "answer": f"You can recover exactly ₹{total_overcharge_amount:,.2f} in cash across {len(overcharge_orders)} orders where the gateway charged higher interchange rates in breach of your {contracted_mdr * 100:.2f}% MDR contract."
-            }
-        ]
+        # Call Agent 5: TaxOptimizerAI for dynamic generative executive insights & FAQs
+        from agents.tax_optimizer_agent import TaxOptimizerAI
+        unpacked_facts = {
+            "total_gmv": round(total_gmv, 2),
+            "net_bank_payout": round(total_net_payout, 2),
+            "total_mdr_expense": round(total_mdr_fee, 2),
+            "total_gst_itc": round(total_gst_itc, 2),
+            "net_payout_pct": net_payout_pct,
+            "mdr_pct": mdr_fee_pct,
+            "gst_pct": gst_itc_pct,
+            "effective_take_rate": effective_take_rate,
+            "overcharge_claim_inr": round(total_overcharge_amount, 2),
+            "overcharge_orders_count": len(overcharge_orders),
+            "dropped_webhooks_count": len(dropped_webhook_orders),
+            "orphan_refunds_count": len(orphan_refund_orders),
+            "orphan_refunds_amount": round(total_orphan_refund_amount, 2),
+            "contracted_sla_text": GatewayConfig.get_sla_text()
+        }
+        ai_response = TaxOptimizerAI.generate_tax_and_executive_insights(unpacked_facts)
+
+        refunds_pct = round((total_orphan_refund_amount / gmv_safe) * 100, 2)
 
         return {
             "success": True,
@@ -154,10 +157,12 @@ class SettlementUnpackerEngine:
                 "total_mdr_expense": round(total_mdr_fee, 2),
                 "total_gst_itc": round(total_gst_itc, 2),
                 "net_bank_payout": round(total_net_payout, 2),
+                "total_customer_refunds": round(total_orphan_refund_amount, 2),
                 "proportions": {
                     "net_payout_percent": net_payout_pct,
                     "mdr_expense_percent": mdr_fee_pct,
-                    "gst_itc_percent": gst_itc_pct
+                    "gst_itc_percent": gst_itc_pct,
+                    "refunds_percent": refunds_pct
                 }
             },
             "categorized_buckets": {
@@ -180,5 +185,7 @@ class SettlementUnpackerEngine:
                     "orders": orphan_refund_orders
                 }
             },
-            "financial_faqs": faqs
+            "executive_summary": ai_response.get("executive_summary", ""),
+            "financial_faqs": ai_response.get("financial_faqs", []),
+            "generated_by": ai_response.get("generated_by", "TaxOptimizerAI")
         }
