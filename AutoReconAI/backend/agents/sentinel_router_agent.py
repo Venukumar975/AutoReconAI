@@ -1,5 +1,5 @@
 """
-AutoReconAI - Agent 1: SentinelRouterAI
+AutoReconAI - Agent 2: SentinelRouterAI
 ========================================
 Role: Scope Guardrail & Granular Intent Classifier Agent.
 - Enforces strict domain boundaries (Finance, 3-way reconciliation, PG fees, dispute claims).
@@ -20,7 +20,7 @@ dotenv.load_dotenv()
 API_KEY = os.getenv("GEMINI_API_KEY")
 CANDIDATE_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.5-flash"]
 
-ROUTER_SYSTEM_PROMPT = """You are SentinelRouterAI — the First-Stage Scope Guardrail and Intent Classification AI Agent for AutoReconAI.
+ROUTER_SYSTEM_PROMPT = """You are SentinelRouterAI — the Scope Guardrail and Intent Classification AI Agent for AutoReconAI.
 
 SYSTEM SCOPE & DOMAIN:
 AutoReconAI specifically handles:
@@ -51,7 +51,10 @@ INSTRUCTIONS:
      * "COURTESY" -> For simple "thank you", "thanks", "hi", "hello" messages.
    - Extract relevant "#tags" list (e.g. ["#recoverable_amount", "#fee_overcharge", "#ord_1002", "#dropped_webhook"]).
    - Extract "extracted_entities": {"order_id": "ORD_xxxx or null", "category": "fee_overcharge | dropped_webhook | orphan_refund | null"}.
-   - Provide a clean 1-line "summary" of the request.
+    - Provide a clean 1-line "summary" of the request.
+5. MULTI-TURN REFERENCE RESOLUTION:
+   - If the user query is a follow-up, clarification, or uses pronouns/references like 'it', 'this', 'that', 'why is it', 'is this improper', resolve the target entity (such as order_id) from the RECENT CONVERSATION HISTORY.
+   - For example, if previous interaction was about ORD_PRIOR_901, and user asks "just what is it is it any improper transaction", extract "order_id": "ORD_PRIOR_901" and set "intent": "SINGLE_ORDER_TRACE" rather than COMPREHENSIVE_AUDIT.
 
 Always respond ONLY in valid JSON matching this schema:
 {
@@ -71,12 +74,12 @@ Always respond ONLY in valid JSON matching this schema:
 from config_loader import GatewayConfig
 
 class SentinelRouterAI:
-    """Agent 1: Evaluates scope, classifies intent, and tags user queries."""
+    """Agent 2: Evaluates scope, classifies intent, and tags user queries."""
 
     @staticmethod
-    def classify_and_tag(user_query: str, session_data: dict = None) -> dict:
+    def classify_and_tag(user_query: str, session_data: dict = None, chat_history: list = None) -> dict:
         if not API_KEY:
-            return SentinelRouterAI._heuristic_fallback(user_query)
+            return SentinelRouterAI._heuristic_fallback(user_query, chat_history)
 
         session_data = session_data or {}
         orders_count = len(session_data.get("orders", []))
@@ -91,9 +94,20 @@ class SentinelRouterAI:
             f"- Bank Transactions Count: {bank_count}\n"
         )
 
+        history_context = ""
+        if chat_history:
+            history_lines = []
+            for idx, turn in enumerate(chat_history[-5:], 1):
+                u_text = turn.get("user", "")
+                a_text = turn.get("assistant", "")
+                if len(a_text) > 160:
+                    a_text = a_text[:160] + "..."
+                history_lines.append(f"[Turn {idx}] User: \"{u_text}\" -> Assistant: \"{a_text}\"")
+            history_context = "\nRECENT CONVERSATION HISTORY (Last 5 Interactions):\n" + "\n".join(history_lines) + "\n"
+
         payload = {
             "contents": [
-                {"role": "user", "parts": [{"text": f"{ROUTER_SYSTEM_PROMPT}{ingestion_context}\nUSER QUERY:\n{user_query}"}]}
+                {"role": "user", "parts": [{"text": f"{ROUTER_SYSTEM_PROMPT}{ingestion_context}{history_context}\nCURRENT USER QUERY:\n{user_query}"}]}
             ],
             "generationConfig": {
                 "responseMimeType": "application/json"
@@ -112,10 +126,10 @@ class SentinelRouterAI:
             except Exception:
                 continue
 
-        return SentinelRouterAI._heuristic_fallback(user_query)
+        return SentinelRouterAI._heuristic_fallback(user_query, chat_history)
 
     @staticmethod
-    def _heuristic_fallback(query: str) -> dict:
+    def _heuristic_fallback(query: str, chat_history: list = None) -> dict:
         q = query.lower()
         if any(w in q for w in ["thank you", "thanks", "thx", "thnak you", "appreciate it"]):
             return {
@@ -140,21 +154,30 @@ class SentinelRouterAI:
                 "summary": "Out of scope request"
             }
 
-        oid_match = re.search(r'\b(ord_?\d+)\b', q)
+        oid_match = re.search(r'\b(ord_?(?:prior_)?\d+)\b', q)
         extracted_oid = oid_match.group(1).upper().replace("ORD", "ORD_") if oid_match else None
+
+        # Resolve entity from chat_history if query uses pronouns
+        if not extracted_oid and chat_history and any(w in q for w in ["it", "this", "that", "improper", "why", "what is"]):
+            for turn in reversed(chat_history):
+                hist_text = f"{turn.get('user', '')} {turn.get('assistant', '')}".lower()
+                hist_oid_match = re.search(r'\b(ord_?(?:prior_)?\d+)\b', hist_text)
+                if hist_oid_match:
+                    extracted_oid = hist_oid_match.group(1).upper().replace("ORD", "ORD_")
+                    break
 
         intent = "COMPREHENSIVE_AUDIT"
         tags = ["#reconciliation_audit"]
 
-        if "recover" in q or "how much" in q or "match rate" in q or "total fee" in q or "lost" in q:
+        if extracted_oid:
+            intent = "SINGLE_ORDER_TRACE"
+            tags = [f"#{extracted_oid.lower()}", "#order_trace"]
+        elif "recover" in q or "how much" in q or "match rate" in q or "total fee" in q or "lost" in q:
             intent = "POINT_METRIC_QUERY"
             tags = ["#point_metric", "#recoverable_amount"]
         elif "dispute" in q or "ticket" in q or "claim" in q:
             intent = "DISPUTE_CLAIM"
             tags = ["#fee_overcharge", "#razorpay_dispute"]
-        elif extracted_oid:
-            intent = "SINGLE_ORDER_TRACE"
-            tags = [f"#{extracted_oid.lower()}", "#order_trace"]
         elif "gateway db" in q or "payments table" in q:
             intent = "GATEWAY_DB_QUERY"
             tags = ["#gateway_db"]

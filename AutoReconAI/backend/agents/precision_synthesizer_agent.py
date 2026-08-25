@@ -1,5 +1,5 @@
 """
-AutoReconAI - Agent 3: PrecisionSynthesizerAI
+AutoReconAI - Agent 4: PrecisionSynthesizerAI
 ==============================================
 Role: Response Formatter, Question-Answer Alignment & Precision Editor Agent.
 - Takes User Query + SentinelRouter Intent/Tags + ReconAuditor Raw Tool Facts.
@@ -61,16 +61,20 @@ CRITICAL SYNTHESIS RULES:
      * Fee Overcharges: Effective rate > 2.36% -> 100% cash-recoverable claim against the gateway.
      * Dropped Webhooks: Store status PENDING vs Gateway CAPTURED -> Requires manual order fulfillment in store (₹0.00 cash claim from PG).
      * Orphan Refunds: Deductions from settlement UTR with negative net credits -> Requires internal ERP ledger adjustment for customer returns.
+
+5. MULTI-TURN CONVERSATIONAL ALIGNMENT:
+   - If the user query is a follow-up or clarification about a previously traced order (e.g. "just what is it is it any improper transaction", "why was it charged", "can we recover it"), answer the exact question directly with natural, concise financial reasoning.
+   - Clarify whether the transaction is improper, fraudulent, or legitimate (e.g. explaining that orphan refunds are standard prior-period customer return deductions, not fraudulent charges) without re-dumping an unnecessary full dataset table.
 """
 
 
 from config_loader import GatewayConfig
 
 class PrecisionSynthesizerAI:
-    """Agent 3: Evaluates facts against user query and synthesizes the exact, non-bloated answer."""
+    """Agent 4: Evaluates facts against user query and synthesizes the exact, non-bloated answer."""
 
     @staticmethod
-    def synthesize_response(user_query: str, router_result: dict, auditor_result: dict) -> dict:
+    def synthesize_response(user_query: str, router_result: dict, auditor_result: dict, chat_history: list = None) -> dict:
         intent = router_result.get("intent", "COMPREHENSIVE_AUDIT")
 
         if intent == "COURTESY":
@@ -87,10 +91,22 @@ class PrecisionSynthesizerAI:
         auditor_summary = auditor_result.get("auditor_summary", "")
         active_sla = GatewayConfig.get_sla_text()
 
+        history_context = ""
+        if chat_history:
+            history_lines = []
+            for idx, turn in enumerate(chat_history[-5:], 1):
+                u_text = turn.get("user", "")
+                a_text = turn.get("assistant", "")
+                if len(a_text) > 160:
+                    a_text = a_text[:160] + "..."
+                history_lines.append(f"[Turn {idx}] User: \"{u_text}\" -> Assistant: \"{a_text}\"")
+            history_context = f"RECENT CONVERSATION HISTORY (Last 5 Interactions):\n" + "\n".join(history_lines) + "\n\n"
+
         context_prompt = (
             f"{SYNTHESIZER_SYSTEM_PROMPT}\n\n"
             f"ACTIVE CONTRACTED SLA TERMS (from config.ini): {active_sla}\n"
-            f"MERCHANT USER QUERY: \"{user_query}\"\n"
+            f"{history_context}"
+            f"CURRENT MERCHANT USER QUERY: \"{user_query}\"\n"
             f"INTENT CLASSIFICATION: {intent}\n"
             f"TAGS: {', '.join(tags)}\n\n"
             f"VERIFIED FINANCIAL FACTS & DATA GATHERED BY RECONAUDITORAI:\n"

@@ -1,5 +1,5 @@
 """
-AutoReconAI - Agent 2: ReconAuditorAI
+AutoReconAI - Agent 3: ReconAuditorAI
 ======================================
 Role: Fact Gatherer & Tool Calling Auditor Agent.
 - Receives pre-tagged query payload from SentinelRouterAI.
@@ -127,7 +127,7 @@ TOOL_DECLARATIONS = [
 
 
 class ReconAuditorAI:
-    """Agent 2: Executes dynamic tool calling and gathers raw verified facts."""
+    """Agent 3: Executes dynamic tool calling and gathers raw verified facts."""
 
     @staticmethod
     def audit_and_gather_facts(user_query: str, router_result: dict, session_data: dict) -> dict:

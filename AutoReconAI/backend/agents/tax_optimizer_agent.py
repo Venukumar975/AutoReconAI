@@ -1,7 +1,7 @@
 """
-TaxOptimizerAI - Specialized Executive Settlement Unpacker & GST Tax Strategist Agent
-======================================================================================
-Role:
+AutoReconAI - Agent 5: TaxOptimizerAI
+======================================
+Role: Specialized Executive Settlement Unpacker & GST Tax Strategist Agent
 - Analyzes verified settlement unpacking metrics computed deterministically by Python.
 - Synthesizes dynamic, professional Indian GST Input Tax Credit (ITC) compliance guidance (Section 16 CGST Act).
 - Formulates tailored executive financial FAQs, take-rate evaluations, and risk mitigation strategies in structured JSON.

@@ -1,6 +1,6 @@
 """
-AutoReconAI - Agent 0: IngestionAuditorAI
-==========================================
+AutoReconAI - Agent 1: IngestionAuditorAI
+=========================================
 Role: First-line Data Readiness & Ingestion Auditor Agent powered by Gemini.
 - Evaluates whether the user's query requires live uploaded reconciliation ledgers.
 - Inspects which of the 3 financial files are uploaded vs missing in the session.
@@ -49,7 +49,7 @@ Always respond ONLY in valid JSON matching this schema:
 
 
 class IngestionAuditorAI:
-    """Agent 0: Audits dataset ingestion readiness."""
+    """Agent 1: Audits dataset ingestion readiness."""
 
     @staticmethod
     def audit_ingestion_readiness(user_query: str, session_data: dict) -> dict:

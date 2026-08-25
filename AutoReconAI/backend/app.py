@@ -91,6 +91,7 @@ def reset_session():
     SESSION_DATA["bank_file_type"] = None
     SESSION_DATA["bank_txns"] = []
     SESSION_DATA["settlements"] = []
+    AIFinanceEngine.reset_chat_memory()
     return jsonify({"success": True, "message": "Session reset successfully"})
 
 

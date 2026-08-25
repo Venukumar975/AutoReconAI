@@ -199,38 +199,37 @@ const AIAssistant = (() => {
 
     let pipelineHtml = '';
     if (pipeline) {
-      const a0 = pipeline.agent_0 || {};
-      const a1 = pipeline.agent_1 || {};
-      const a2 = pipeline.agent_2 || {};
-      const a3 = pipeline.agent_3 || {};
+      const a1 = pipeline.agent_1 || pipeline.agent_0 || {};
+      const a2 = pipeline.agent_2 || pipeline.agent_1 || {};
+      const a3 = pipeline.agent_3 || pipeline.agent_2 || {};
+      const a4 = pipeline.agent_4 || pipeline.agent_3 || {};
 
       // If out of scope: NO alert badges at all, keep it completely clean!
-      if (a1.scope === 'OUT_OF_SCOPE') {
+      if (a2.scope === 'OUT_OF_SCOPE' || a1.scope === 'OUT_OF_SCOPE') {
         pipelineHtml = '';
-      } else if (a0.status === 'INGESTION_REQUIRED') {
+      } else if (a1.status === 'INGESTION_REQUIRED') {
         pipelineHtml = `
           <div class="pipeline-badge-container">
-            <div class="agent-pill agent-pill-router">📁 IngestionAuditorAI: Missing Dataset Ingestion</div>
+            <div class="agent-pill agent-pill-router">📁 Agent 1 (IngestionAuditorAI): Missing Dataset Ingestion</div>
           </div>
         `;
       } else {
-        const a0Badge = `<div class="agent-pill agent-pill-router">📁 IngestionAuditorAI: Dataset Verified</div>`;
-        const tags = (a1.tags || []).map(t => `<span class="agent-tag-chip">${t}</span>`).join('');
-        const a1Badge = `<div class="agent-pill agent-pill-router">🏷️ SentinelRouterAI: Tagged [${a1.intent || 'IN_SCOPE'}] ${tags}</div>`;
+        const tags = (a2.tags || []).map(t => `<span class="agent-tag-chip">${t}</span>`).join('');
+        const a2Badge = `<div class="agent-pill agent-pill-router">🏷️ Agent 2 (SentinelRouterAI): Tagged [${a2.intent || 'IN_SCOPE'}] ${tags}</div>`;
 
-        let a2Badge = '';
-        if (a2.tools_called && a2.tools_called.length > 0) {
-          const toolNames = a2.tools_called.map(t => `<code>${t.tool}()</code>`).join(', ');
-          a2Badge = `<div class="agent-pill agent-pill-auditor">⚙️ ReconAuditorAI: Executed Tools ${toolNames}</div>`;
+        let a3Badge = '';
+        if (a3.tools_called && a3.tools_called.length > 0) {
+          const toolNames = a3.tools_called.map(t => `<code>${t.tool}()</code>`).join(', ');
+          a3Badge = `<div class="agent-pill agent-pill-auditor">⚙️ Agent 3 (ReconAuditorAI): Executed Tools ${toolNames}</div>`;
         }
 
-        const a3Badge = `<div class="agent-pill agent-pill-auditor">✍️ PrecisionSynthesizerAI: Tailored Alignment</div>`;
+        const a4Badge = `<div class="agent-pill agent-pill-auditor">✍️ Agent 4 (PrecisionSynthesizerAI): Tailored Alignment</div>`;
 
         pipelineHtml = `
           <div class="pipeline-badge-container">
-            ${a1Badge}
             ${a2Badge}
             ${a3Badge}
+            ${a4Badge}
           </div>
         `;
       }
