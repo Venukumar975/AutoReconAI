@@ -1,15 +1,14 @@
 """
 AutoReconAI - Agent 4: PrecisionSynthesizerAI
 ==============================================
-Role: Response Formatter, Question-Answer Alignment & Precision Editor Agent.
-- Takes User Query + SentinelRouter Intent/Tags + ReconAuditor Raw Tool Facts.
-- Enforces strict Question-Answer Alignment and Proportionality:
-  * Short targeted questions -> Direct punchy answers with exact figures from live tool data (NO unrequested table dumps).
-  * Single order queries -> Laser-focused 3-way trace of that order only.
-  * Dispute requests -> Formal Razorpay claim dossier with dynamic order breakdowns.
-  * Comprehensive audit requests -> Multi-table executive report.
-  * Courtesy messages -> Warm, polite 1-liner.
-- 100% Dynamic and dataset-agnostic (extracts all figures from live tool outputs).
+Role: Pure Presentation Formatter, Question-Answer Alignment & Precision Editor Agent.
+- Takes: Enriched Query + Tags from DomainReasonerAI + Live Verified Tool Data from ReconAuditorAI + 5-Turn Memory Window.
+- Strictly enforces Zero Boilerplate (no "As your AI Finance Controller...", straight to the answer).
+- Enforces Tag-Driven Proportionality:
+  * `#point_metric`: Exact bold number in sentence 1 + 1-2 bullet points (under 150 words, NO unrequested tables).
+  * `#single_order`: Focused 3-way trace table for THAT order only.
+  * `#dispute_claim`: Formal Razorpay dispute claim letter using exact calculated overcharge amounts.
+  * `#executive_audit`: Structured multi-table executive summary.
 """
 
 import os
@@ -21,75 +20,63 @@ import dotenv
 dotenv.load_dotenv()
 
 API_KEY = os.getenv("GEMINI_API_KEY")
-CANDIDATE_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.5-flash"]
+CANDIDATE_MODELS = ["gemini-3-flash-preview", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview", "gemini-flash-latest"]
 
-SYNTHESIZER_SYSTEM_PROMPT = """You are PrecisionSynthesizerAI — the Final Synthesis and Question-Answer Alignment AI Agent for AutoReconAI.
+SYNTHESIZER_SYSTEM_PROMPT = """You are PrecisionSynthesizerAI — the Presentation Formatter and Question-Answer Alignment AI Agent for AutoReconAI.
 
 YOUR MISSION:
-Review the merchant's exact question, the intent classification, and the raw verified facts gathered by ReconAuditorAI. Synthesize a clean, professional, perfectly scoped answer that directly answers the question without unrequested bloat.
+Synthesize a clean, professional, perfectly scoped answer to the merchant's query using the verified facts gathered by ReconAuditorAI.
 
-CRITICAL SYNTHESIS RULES:
+CRITICAL PRESENTATION RULES:
 
-1. QUESTION-ANSWER ALIGNMENT & PROPORTIONALITY (STRICT):
-   - If the merchant sent a COURTESY message (e.g. "thank you", "thanks", "hello"):
-     * Respond with a warm, polite 1-liner (e.g. "You're very welcome! Let me know if you need to inspect any other transaction or generate dispute claims.").
+1. ZERO BOILERPLATE (STRICT):
+   - Never use filler intros like "As your AI Finance Controller, I have audited your ledgers..." or "Based on the comprehensive 3-way reconciliation...".
+   - Start immediately with the direct answer or table.
 
-   - If the merchant asked a focused / point question (e.g., "what is the total recoverable money?", "what is our match rate?", "how much was overcharged?"):
-     * DIRECT ANSWER FIRST: Give the exact calculated number from the tool data in bold in the very first sentence.
-     * CONCISE BREAKDOWN: Provide 1-2 short bullet points explaining why based on the dynamic findings.
-     * DO NOT DUMP UNREQUESTED TABLES: Do NOT print GMV tables, GST totals, or full dropped webhook inventory lists unless explicitly asked for a full audit summary.
-     * Keep the response under 150 words.
+2. MATHEMATICAL IMMUTABILITY (CRITICAL RULE):
+   - You MUST treat tool outputs from ReconAuditorAI as 100% immutable ground truth.
+   - You are STRICTLY FORBIDDEN from performing mental arithmetic, modifying numbers, or hallucinating claim amounts.
+   - In dispute claim tickets, the Total Claim Amount MUST strictly equal the calculated overcharge total from `calculate_fee_discrepancies` or `generate_dispute_ticket`.
 
-   - If the merchant asked about a SPECIFIC Order ID (e.g., "what happened to ORD_xxxx?"):
-     * Present a clean 3-way trace table for THAT SPECIFIC ORDER ONLY using the tool results.
-     * State the exact status, payment ID, fee charged, bank UTR, and recommended action.
+3. TAG-DRIVEN PROPORTIONAL LAYOUTS:
+   - IF TAGGED `#point_metric`:
+     * State the exact number in bold in the very first sentence (e.g. "The total recoverable money from Razorpay is **₹85.57** across **9 orders**.").
+     * Follow with 1-2 brief bullet points explaining the root cause (e.g. MDR overcharged above contracted 2.00% + 18% GST).
+     * DO NOT output full tables or unrelated data dumps. Keep under 150 words.
 
-   - If the merchant asked for a DISPUTE CLAIM TICKET:
-     * Format a clean, official merchant dispute claim letter addressed to `merchant-support@razorpay.com` listing all overcharged order IDs, UTRs, and calculated claim amounts from the tool output.
+   - IF TAGGED `#single_order`:
+     * Output a clean 3-way trace table for THAT SPECIFIC ORDER ONLY showing: Store Status, Razorpay Status, Billed Amount, Charged Fee, Bank UTR, and Diagnosis.
+     * State the recommended operational action (e.g. fulfill manually for dropped webhook, or claim MDR overcharge).
 
-   - If the merchant asked for a FULL / COMPREHENSIVE AUDIT REPORT:
-     * Present the structured executive summary table with Match Rate, GMV, fees, and the 3 mismatch categories calculated dynamically from the tool data.
+   - IF TAGGED `#dispute_claim`:
+     * Format a formal Razorpay Merchant Dispute Claim Ticket dossier addressed to `merchant-support@razorpay.com`.
+     * The total claim amount MUST strictly match the exact overcharge sum in the verified tool output. NEVER estimate or hallucinate arbitrary claim amounts.
+     * Include a markdown table listing each disputed Order ID, Payment ID, Settlement UTR, Billed Amount, Charged Fee, Contracted Fee, and Overcharge Claim.
 
-2. ZERO BOILERPLATE:
-   - Do NOT use filler greetings like "As your Senior AI Finance Controller, I have completed a rigorous 3-way reconciliation...".
-   - Start immediately with the answer.
+   - IF TAGGED `#executive_audit`:
+     * Present a clean executive markdown summary table with GMV, Total Fees, Bank Deposited, Match Rate, and the 3 Edge Case breakdown (Dropped Webhooks, Fee Overcharges, Orphan Refunds).
 
-3. DOMAIN ACCURACY & DYNAMIC CALCULATIONS:
-   - Contracted Merchant SLA Terms: 2.00% Domestic MDR + 18.00% GST (Effective 2.36%).
-   - Dynamic Figures: ALWAYS extract exact monetary amounts, order IDs, match rates, and overcharge totals directly from the live tool_data payload. Never invent or assume hardcoded numbers.
-   - Financial Categories:
-     * Fee Overcharges: Effective rate > 2.36% -> 100% cash-recoverable claim against the gateway.
-     * Dropped Webhooks: Store status PENDING vs Gateway CAPTURED -> Requires manual order fulfillment in store (₹0.00 cash claim from PG).
-     * Orphan Refunds: Deductions from settlement UTR with negative net credits -> Requires internal ERP ledger adjustment for customer returns.
-
-5. MULTI-TURN CONVERSATIONAL ALIGNMENT:
-   - If the user query is a follow-up or clarification about a previously traced order (e.g. "just what is it is it any improper transaction", "why was it charged", "can we recover it"), answer the exact question directly with natural, concise financial reasoning.
-   - Clarify whether the transaction is improper, fraudulent, or legitimate (e.g. explaining that orphan refunds are standard prior-period customer return deductions, not fraudulent charges) without re-dumping an unnecessary full dataset table.
+3. MULTI-TURN CONVERSATIONAL ALIGNMENT:
+   - When the user asks follow-up questions (e.g. "why is it pending", "is this an improper transaction"), provide a natural financial explanation directly answering their concern without repeating entire unrequested audit reports.
 """
-
 
 from config_loader import GatewayConfig
 
+
 class PrecisionSynthesizerAI:
-    """Agent 4: Evaluates facts against user query and synthesizes the exact, non-bloated answer."""
+    """Agent 4: Formats and synthesizes the exact, non-bloated, tag-driven response."""
 
     @staticmethod
     def synthesize_response(user_query: str, router_result: dict, auditor_result: dict, chat_history: list = None) -> dict:
+        enriched_query = router_result.get("enriched_query") or user_query
         intent = router_result.get("intent", "COMPREHENSIVE_AUDIT")
-
-        if intent == "COURTESY":
-            return {
-                "final_answer": "You're very welcome! Let me know if you need to trace any other order, draft another claim, or audit a new ledger batch.",
-                "status": "COURTESY_REPLIED"
-            }
-
-        if not API_KEY:
-            return PrecisionSynthesizerAI._fallback_synthesis(user_query, router_result, auditor_result)
-
         tags = router_result.get("tags", [])
         tool_data = auditor_result.get("collected_tool_data", {})
         auditor_summary = auditor_result.get("auditor_summary", "")
         active_sla = GatewayConfig.get_sla_text()
+
+        if not API_KEY:
+            return PrecisionSynthesizerAI._fallback_synthesis(enriched_query, router_result, auditor_result)
 
         history_context = ""
         if chat_history:
@@ -106,13 +93,13 @@ class PrecisionSynthesizerAI:
             f"{SYNTHESIZER_SYSTEM_PROMPT}\n\n"
             f"ACTIVE CONTRACTED SLA TERMS (from config.ini): {active_sla}\n"
             f"{history_context}"
-            f"CURRENT MERCHANT USER QUERY: \"{user_query}\"\n"
+            f"ENRICHED MERCHANT QUERY: \"{enriched_query}\"\n"
             f"INTENT CLASSIFICATION: {intent}\n"
             f"TAGS: {', '.join(tags)}\n\n"
             f"VERIFIED FINANCIAL FACTS & DATA GATHERED BY RECONAUDITORAI:\n"
             f"{json.dumps(tool_data, indent=2)}\n\n"
             f"AUDITOR FINDINGS:\n{auditor_summary}\n\n"
-            f"TASK: Synthesize the final, direct, proportional response following the synthesis rules strictly using the facts and active SLA terms above."
+            f"TASK: Synthesize the final direct, zero-boilerplate response following the tag-driven presentation rules strictly."
         )
 
         payload = {
@@ -136,7 +123,7 @@ class PrecisionSynthesizerAI:
             except Exception:
                 continue
 
-        return PrecisionSynthesizerAI._fallback_synthesis(user_query, router_result, auditor_result)
+        return PrecisionSynthesizerAI._fallback_synthesis(enriched_query, router_result, auditor_result)
 
     @staticmethod
     def _fallback_synthesis(user_query: str, router_result: dict, auditor_result: dict) -> dict:
@@ -149,11 +136,10 @@ class PrecisionSynthesizerAI:
             orders = [d["order_id"] for d in fee_data.get("discrepancy_details", [])]
             orders_str = ", ".join(orders) if orders else "identified orders"
             ans = (
-                f"The total recoverable money from Razorpay is **₹{total_claim:,.2f}**.\n\n"
-                f"**Why it is claimable:**\n"
-                f"- Razorpay overcharged your Merchant Discount Rate (MDR) on **{len(orders)} orders** (`{orders_str}`), breaching your contracted **2.00% + 18% GST SLA**.\n"
-                f"- *(Note: Dropped webhooks require store fulfillment, and orphan refunds require internal ERP adjustment, not cash claims from Razorpay).* \n\n"
-                f"👉 *Would you like me to draft the official Razorpay dispute claim ticket for the **₹{total_claim:,.2f}**?*"
+                f"The total recoverable money from Razorpay is **₹{total_claim:,.2f}** across **{len(orders)} orders**.\n\n"
+                f"**Key Findings:**\n"
+                f"- Razorpay billed higher MDR rates on orders `{orders_str}`, violating your contracted SLA ({GatewayConfig.get_sla_text()}).\n"
+                f"- Dropped webhooks require store fulfillment, and orphan refunds are prior-period customer return adjustments (₹0.00 gateway cash claim)."
             )
             return {"final_answer": ans, "status": "FALLBACK_ALIGNED"}
 

@@ -2,7 +2,7 @@
 AutoReconAI - Agent 3: ReconAuditorAI
 ======================================
 Role: Fact Gatherer & Tool Calling Auditor Agent.
-- Receives pre-tagged query payload from SentinelRouterAI.
+- Receives the clean, enriched query and structured tags from DomainReasonerAI (Agent 2).
 - Autonomously executes dynamic reconciliation tools via Gemini Function Calling.
 - Gathers raw verified facts, numbers, fee variances, and ledger records.
 - Forwards gathered data and tool outputs to PrecisionSynthesizerAI for tailored synthesis.
@@ -19,20 +19,25 @@ from config_loader import GatewayConfig
 dotenv.load_dotenv()
 
 API_KEY = os.getenv("GEMINI_API_KEY")
-CANDIDATE_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.5-flash"]
+CANDIDATE_MODELS = ["gemini-3-flash-preview", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview", "gemini-flash-latest"]
 
 AUDITOR_SYSTEM_PROMPT = """You are ReconAuditorAI — the Fact Gathering and Tool-Calling Execution AI Agent for AutoReconAI.
 
 YOUR MISSION:
-Analyze the merchant query and SentinelRouterAI's tags. Call the necessary tools to retrieve all required facts, calculations, and ledger data from the live session:
+Analyze the merchant's enriched query and DomainReasonerAI's intent tags. Call the necessary tools to retrieve all required facts, calculations, and ledger data from the live session:
 - get_reconciliation_overview: For match rates, GMV, total fees, and high-level stats.
-- calculate_fee_discrepancies: For exact MDR fee overcharge calculations (2.0% SLA breach).
+- calculate_fee_discrepancies: For exact MDR fee overcharge calculations (2.00% SLA breach).
 - inspect_order_lifecycle: For tracing a specific Order ID across 3 ledgers.
 - list_mismatches: For anomaly lists (dropped webhooks, orphan refunds, fee overcharges).
 - query_gateway_payments_db: For inspecting Razorpay gateway core payments database.
 - generate_dispute_ticket: For compiling dispute claim ticket payloads.
 
-After gathering all tool results, provide a comprehensive raw fact summary of your findings so PrecisionSynthesizerAI can format the perfect direct answer.
+CRITICAL EXECUTION RULES:
+- If intent is "DISPUTE_CLAIM" or tags contain "#dispute_claim", you MUST call `calculate_fee_discrepancies` or `generate_dispute_ticket`.
+- If intent is "SINGLE_ORDER_TRACE" or tags contain a specific order ID, you MUST call `inspect_order_lifecycle`.
+- If intent is "POINT_METRIC_QUERY", call `calculate_fee_discrepancies` (for overcharge/claim questions) or `get_reconciliation_overview` (for match rate/GMV questions).
+
+After executing the tools, summarize the verified numerical facts directly.
 """
 
 TOOL_DECLARATIONS = [
@@ -86,7 +91,7 @@ TOOL_DECLARATIONS = [
             },
             {
                 "name": "query_gateway_payments_db",
-                "description": "Read-only inspection of Razorpay's authentic Payment Gateway database ('payments' table). Note: Client-side store tables like 'orders', 'cart', 'products' are merchant private data and NOT accessible in gateway DB; only merchant-uploaded session files are accessible.",
+                "description": "Read-only inspection of Razorpay's authentic Payment Gateway database ('payments' table). Note: Client-side store tables like 'orders', 'cart', 'products' are merchant private data and NOT accessible in gateway DB.",
                 "parameters": {
                     "type": "OBJECT",
                     "properties": {
@@ -127,26 +132,34 @@ TOOL_DECLARATIONS = [
 
 
 class ReconAuditorAI:
-    """Agent 3: Executes dynamic tool calling and gathers raw verified facts."""
+    """Agent 3: Executes dynamic tool calling using enriched query & tags, gathering raw facts."""
 
     @staticmethod
     def audit_and_gather_facts(user_query: str, router_result: dict, session_data: dict) -> dict:
         tools_called_log = []
         collected_tool_results = {}
 
-        if not API_KEY:
-            return ReconAuditorAI._fallback_auditor(user_query, router_result, session_data, tools_called_log)
-
+        enriched_query = router_result.get("enriched_query") or user_query
+        intent = router_result.get("intent", "COMPREHENSIVE_AUDIT")
         tags_str = ", ".join(router_result.get("tags", []))
+        extracted_oid = router_result.get("extracted_entities", {}).get("order_id")
+
+        if not API_KEY:
+            return ReconAuditorAI._fallback_auditor(enriched_query, router_result, session_data, tools_called_log)
+
         initial_prompt = (
             f"{AUDITOR_SYSTEM_PROMPT}\n\n"
             f"ACTIVE CONTRACTED SLA TERMS (from config.ini): {GatewayConfig.get_sla_text()}\n"
-            f"[SentinelRouterAI Classification]:\n"
-            f"- Intent: {router_result.get('intent')}\n"
+            f"[DomainReasonerAI Analysis]:\n"
+            f"- Intent: {intent}\n"
             f"- Tags: {tags_str}\n"
-            f"- Extracted Entities: {json.dumps(router_result.get('extracted_entities', {}))}\n\n"
-            f"USER QUERY: {user_query}"
+            f"- Extracted Entities: {json.dumps(router_result.get('extracted_entities', {}))}\n"
+            f"- Enriched Query: {enriched_query}\n\n"
+            f"ORIGINAL QUERY: {user_query}"
         )
+
+        success = False
+        final_summary_text = ""
 
         for model in CANDIDATE_MODELS:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={API_KEY}"
@@ -192,7 +205,7 @@ class ReconAuditorAI:
                             "summary": f"Executed {fn_name}()"
                         })
 
-                        # Maintain model turn with thoughtSignature
+                        # Maintain model turn
                         conversation.append(candidate_content)
 
                         # Append tool result
@@ -208,17 +221,37 @@ class ReconAuditorAI:
                             ]
                         })
                     else:
-                        final_text = parts[0].get("text", "") if parts else ""
-                        return {
-                            "auditor_summary": final_text,
-                            "collected_tool_data": loop_results,
-                            "tools_called": loop_tools_log
-                        }
+                        final_summary_text = parts[0].get("text", "") if parts else ""
+                        collected_tool_results = loop_results
+                        tools_called_log = loop_tools_log
+                        success = True
+                        break
 
                 except Exception:
                     break
 
-        return ReconAuditorAI._fallback_auditor(user_query, router_result, session_data, tools_called_log)
+            if success:
+                break
+
+        if not success or not collected_tool_results:
+            return ReconAuditorAI._fallback_auditor(enriched_query, router_result, session_data, tools_called_log)
+
+        # Safety Check: Guarantee critical tool outputs based on Intent
+        if intent == "DISPUTE_CLAIM" and "calculate_fee_discrepancies" not in collected_tool_results:
+            fee_data = ReconToolbox.calculate_fee_discrepancies(session_data)
+            collected_tool_results["calculate_fee_discrepancies"] = fee_data
+            tools_called_log.append({"tool": "calculate_fee_discrepancies", "args": {}, "summary": "Calculated MDR fee discrepancies (Guaranteed)"})
+
+        if intent == "SINGLE_ORDER_TRACE" and extracted_oid and "inspect_order_lifecycle" not in collected_tool_results:
+            order_data = ReconToolbox.inspect_order_lifecycle(session_data, order_id=extracted_oid)
+            collected_tool_results["inspect_order_lifecycle"] = order_data
+            tools_called_log.append({"tool": "inspect_order_lifecycle", "args": {"order_id": extracted_oid}, "summary": f"Traced order {extracted_oid} (Guaranteed)"})
+
+        return {
+            "auditor_summary": final_summary_text or "Audit facts gathered from live reconciliation ledgers.",
+            "collected_tool_data": collected_tool_results,
+            "tools_called": tools_called_log
+        }
 
     @staticmethod
     def _dispatch_tool(fn_name: str, fn_args: dict, session_data: dict):
@@ -246,6 +279,7 @@ class ReconAuditorAI:
     @staticmethod
     def _fallback_auditor(query: str, router_result: dict, session_data: dict, tools_log: list = None):
         intent = router_result.get("intent", "COMPREHENSIVE_AUDIT")
+        extracted_oid = router_result.get("extracted_entities", {}).get("order_id")
         tools_log = tools_log or []
         collected = {}
 
@@ -253,6 +287,10 @@ class ReconAuditorAI:
             fee_data = ReconToolbox.calculate_fee_discrepancies(session_data)
             collected["calculate_fee_discrepancies"] = fee_data
             tools_log.append({"tool": "calculate_fee_discrepancies", "args": {}, "summary": "Calculated MDR overcharges"})
+        elif intent == "SINGLE_ORDER_TRACE" and extracted_oid:
+            order_data = ReconToolbox.inspect_order_lifecycle(session_data, order_id=extracted_oid)
+            collected["inspect_order_lifecycle"] = order_data
+            tools_log.append({"tool": "inspect_order_lifecycle", "args": {"order_id": extracted_oid}, "summary": f"Traced order {extracted_oid}"})
         else:
             overview = ReconToolbox.get_reconciliation_overview(session_data)
             collected["get_reconciliation_overview"] = overview

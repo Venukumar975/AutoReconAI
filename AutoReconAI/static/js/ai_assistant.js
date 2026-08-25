@@ -204,18 +204,21 @@ const AIAssistant = (() => {
       const a3 = pipeline.agent_3 || pipeline.agent_2 || {};
       const a4 = pipeline.agent_4 || pipeline.agent_3 || {};
 
-      // If out of scope: NO alert badges at all, keep it completely clean!
-      if (a2.scope === 'OUT_OF_SCOPE' || a1.scope === 'OUT_OF_SCOPE') {
+      // If out of scope or blocked or courtesy: keep UI clean
+      if (a1.scope === 'OUT_OF_SCOPE' || a1.scope === 'BLOCKED' || a1.scope === 'COURTESY' || a2.scope === 'OUT_OF_SCOPE') {
         pipelineHtml = '';
-      } else if (a1.status === 'INGESTION_REQUIRED') {
+      } else if (a2.status === 'DATA_REQUIRED') {
         pipelineHtml = `
           <div class="pipeline-badge-container">
-            <div class="agent-pill agent-pill-router">📁 Agent 1 (IngestionAuditorAI): Missing Dataset Ingestion</div>
+            <div class="agent-pill agent-pill-router">🛡️ Agent 1 (SentinelFirewallAI): Security Cleared</div>
+            <div class="agent-pill agent-pill-router">📁 Agent 2 (DomainReasonerAI): Dataset Ingestion Required</div>
           </div>
         `;
       } else {
+        const a1Badge = `<div class="agent-pill agent-pill-router">🛡️ Agent 1 (SentinelFirewallAI): Security Cleared</div>`;
+
         const tags = (a2.tags || []).map(t => `<span class="agent-tag-chip">${t}</span>`).join('');
-        const a2Badge = `<div class="agent-pill agent-pill-router">🏷️ Agent 2 (SentinelRouterAI): Tagged [${a2.intent || 'IN_SCOPE'}] ${tags}</div>`;
+        const a2Badge = `<div class="agent-pill agent-pill-router">🧠 Agent 2 (DomainReasonerAI): Tagged [${a2.intent || 'IN_SCOPE'}] ${tags}</div>`;
 
         let a3Badge = '';
         if (a3.tools_called && a3.tools_called.length > 0) {
@@ -223,10 +226,11 @@ const AIAssistant = (() => {
           a3Badge = `<div class="agent-pill agent-pill-auditor">⚙️ Agent 3 (ReconAuditorAI): Executed Tools ${toolNames}</div>`;
         }
 
-        const a4Badge = `<div class="agent-pill agent-pill-auditor">✍️ Agent 4 (PrecisionSynthesizerAI): Tailored Alignment</div>`;
+        const a4Badge = `<div class="agent-pill agent-pill-auditor">✍️ Agent 4 (PrecisionSynthesizerAI): Tag-Aligned Synthesis</div>`;
 
         pipelineHtml = `
           <div class="pipeline-badge-container">
+            ${a1Badge}
             ${a2Badge}
             ${a3Badge}
             ${a4Badge}

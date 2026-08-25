@@ -9,8 +9,13 @@ sys.path.insert(0, BACKEND_DIR)
 
 from config_loader import GatewayConfig
 
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-STORE_DB_PATH = os.path.join(ROOT_DIR, "store.db")
+POSSIBLE_DB_PATHS = [
+    os.path.join(BACKEND_DIR, "..", "store.db"),
+    os.path.join(BACKEND_DIR, "..", "..", "store.db"),
+    os.path.join(CURRENT_DIR, "store.db"),
+    os.path.abspath("store.db")
+]
+STORE_DB_PATH = next((p for p in POSSIBLE_DB_PATHS if os.path.exists(os.path.abspath(p))), os.path.abspath(os.path.join(BACKEND_DIR, "..", "store.db")))
 
 
 class ReconToolbox:
@@ -21,10 +26,10 @@ class ReconToolbox:
         settlements = session_data.get("settlements", [])
         bank_txns = session_data.get("bank_txns", [])
 
-        if not orders or not settlements:
+        if not orders or not settlements or not bank_txns:
             return {
                 "status": "NO_SESSION_DATA",
-                "message": "No active reconciliation data loaded. Please ensure Store Orders CSV and Settlement CSV are uploaded."
+                "message": "No active reconciliation data loaded. Please ensure Store Orders CSV, Bank Statement(PDF/Excel) and Settlement CSV are uploaded."
             }
 
         orders_by_id = {o["order_id"]: o for o in orders}
@@ -36,7 +41,7 @@ class ReconToolbox:
         total_gst = sum(float(s.get("tax", 0.0)) for s in settlements)
         total_bank_deposited = sum(float(b.get("credit", 0.0)) for b in bank_txns if b.get("is_gateway_credit"))
 
-        mdr_threshold = GatewayConfig.get_mdr_rate() + 0.0005
+        mdr_threshold = GatewayConfig.get_mdr_rate() + 0.0005 # To remove rounding errors and improve precision 
 
         dropped_webhooks = []
         fee_overcharges = []
@@ -313,12 +318,14 @@ class ReconToolbox:
             "discrepancy_details": overcharged_list
         }
 
+    ALLOWED_TABLES = {"payments"}
+    ALLOWED_COLUMNS = {"payment_id", "order_id", "status", "settlement_utr"}
+
     @staticmethod
     def query_gateway_payments_db(filter_key=None, filter_value=None):
         """
-        Queries Razorpay's authentic Payment Gateway database ('payments' table).
-        Client-side store tables ('orders', 'cart', 'products') are merchant private ledgers
-        and are not accessible to the gateway backend directly.
+        Read-only, strictly parameterized inspection of Razorpay Gateway 'payments' table.
+        Client-side store tables ('orders', 'cart', 'products') are merchant private ledgers.
         """
         if not os.path.exists(STORE_DB_PATH):
             return {"status": "DB_NOT_FOUND", "message": "store.db does not exist yet."}
@@ -330,11 +337,9 @@ class ReconToolbox:
 
             if filter_key and filter_value:
                 clean_col = re.sub(r'[^a-zA-Z0-9_]', '', str(filter_key).lower())
-                # Only allow filtering on valid payments columns
-                allowed_cols = ["payment_id", "order_id", "status", "settlement_utr"]
-                if clean_col not in allowed_cols:
+                if clean_col not in ReconToolbox.ALLOWED_COLUMNS:
                     clean_col = "order_id"
-                cursor.execute(f"SELECT * FROM payments WHERE {clean_col} LIKE ? LIMIT 20;", (f"%{filter_value}%",))
+                cursor.execute(f"SELECT * FROM payments WHERE {clean_col} LIKE ? LIMIT 20;", (f"%{str(filter_value).strip()}%",))
             else:
                 cursor.execute("SELECT * FROM payments LIMIT 20;")
 
