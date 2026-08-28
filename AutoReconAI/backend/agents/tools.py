@@ -314,7 +314,7 @@ class ReconToolbox:
         }
 
     ALLOWED_TABLES = {"payments"}
-    ALLOWED_COLUMNS = {"payment_id", "order_id", "status", "settlement_utr"}
+    ALLOWED_COLUMNS = {"payment_id", "order_id", "status", "settlement_utr", "created_at"}
 
     @staticmethod
     def query_gateway_payments_db(filter_key=None, filter_value=None):
@@ -332,20 +332,25 @@ class ReconToolbox:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
+            # Execute SELECT COUNT(*) to get true total transaction count in database
+            cursor.execute("SELECT COUNT(*) FROM payments;")
+            total_count = cursor.fetchone()[0]
+
             if filter_key and filter_value:
                 clean_col = re.sub(r'[^a-zA-Z0-9_]', '', str(filter_key).lower())
                 if clean_col not in ReconToolbox.ALLOWED_COLUMNS:
                     clean_col = "order_id"
-                cursor.execute(f"SELECT * FROM payments WHERE {clean_col} LIKE ? LIMIT 20;", (f"%{str(filter_value).strip()}%",))
+                cursor.execute(f"SELECT * FROM payments WHERE {clean_col} LIKE ? LIMIT 100;", (f"%{str(filter_value).strip()}%",))
             else:
-                cursor.execute("SELECT * FROM payments LIMIT 20;")
+                cursor.execute("SELECT * FROM payments LIMIT 100;")
 
             rows = [dict(r) for r in cursor.fetchall()]
             conn.close()
             return {
                 "gateway_table": "payments",
                 "authority": "Razorpay Gateway Core Database (Read-Only Defense Active)",
-                "record_count": len(rows),
+                "total_records_in_db": total_count,
+                "returned_records_count": len(rows),
                 "records": rows,
                 "note": "Client-side merchant store tables (orders/cart/products) are private client data and cannot be queried directly from gateway DB."
             }
@@ -407,7 +412,7 @@ class ReconToolbox:
             "recipient": "merchant-support@razorpay.com",
             "subject": f"URGENT: MDR Fee Overcharge Dispute Claim - Batch Ref #{len(order_ids)} Orders",
             "total_claim_amount_inr": round(total_claim, 2),
-            "contracted_sla_terms": "2.00% Domestic MDR + 18.00% GST",
+            "contracted_sla_terms": GatewayConfig.get_sla_text(),
             "disputed_orders": orders_summary,
             "dispute_reason": reason
         }

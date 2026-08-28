@@ -204,8 +204,8 @@ const AIAssistant = (() => {
       const a3 = pipeline.agent_3 || pipeline.agent_2 || {};
       const a4 = pipeline.agent_4 || pipeline.agent_3 || {};
 
-      // If out of scope: NO alert badges at all, keep it completely clean!
-      if (a2.scope === 'OUT_OF_SCOPE' || a1.scope === 'OUT_OF_SCOPE') {
+      // If blocked or out of scope: NO alert badges at all, keep it completely clean!
+      if (a1.scope === 'BLOCKED' || a1.status === 'INJECTION_BLOCKED' || a2.scope === 'OUT_OF_SCOPE' || a1.scope === 'OUT_OF_SCOPE') {
         pipelineHtml = '';
       } else if (a1.status === 'INGESTION_REQUIRED') {
         pipelineHtml = `
@@ -223,7 +223,8 @@ const AIAssistant = (() => {
           a3Badge = `<div class="agent-pill agent-pill-auditor">⚙️ Agent 3 (ReconAuditorAI): Executed Tools ${toolNames}</div>`;
         }
 
-        const a4Badge = `<div class="agent-pill agent-pill-auditor">✍️ Agent 4 (PrecisionSynthesizerAI): Tailored Alignment</div>`;
+        const a4StatusText = (a4.status || 'TAILORED_SYNTHESIS').replace(/_/g, ' ');
+        const a4Badge = `<div class="agent-pill agent-pill-auditor">✍️ Agent 4 (PrecisionSynthesizerAI): ${a4StatusText}</div>`;
 
         pipelineHtml = `
           <div class="pipeline-badge-container">

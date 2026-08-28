@@ -66,7 +66,9 @@ Inspect the incoming user input before it reaches downstream domain reasoning or
      * "message": A warm, professional 1-line financial assistant greeting (e.g. "You're very welcome! Let me know if you need to audit transactions, check MDR fees, or draft dispute claims.")
 
 4. IN_SCOPE (FINANCE, RECONCILIATION & GATEWAY DOMAIN):
-   - A request is IN_SCOPE when its primary objective involves analyzing, reconciling, calculating, tracing, validating, or explaining financial transaction data, GST taxes, MDR fees, settlement payouts, UTR numbers, dropped webhooks, or merchant gateway workflows.
+   - A request is IN_SCOPE when its primary objective involves analyzing, reconciling, calculating, tracing, validating, inspecting, or explaining financial transaction data, GST taxes, MDR fees, settlement payouts, UTR numbers, dropped webhooks, or merchant gateway workflows.
+   - DATABASE INSPECTION EXEMPTION: Merchant queries asking to view, list, or inspect authentic payment records from the gateway database (e.g., "show me db records", "show payment records from database", "list database payments", "show orders in database") ARE IN_SCOPE and MUST be approved.
+   - FORMATTING DIRECTIVES EXEMPTION: Follow-up formatting commands during an active chat session (e.g., "i need a single line answer", "short answer", "explain simply", "give me a brief summary") ARE IN_SCOPE and MUST be approved.
    - Set:
      * "scope": "IN_SCOPE"
      * "status": "PASSED"

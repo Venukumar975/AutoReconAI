@@ -66,43 +66,8 @@ class AIFinanceEngine:
                 "answer": firewall_check.get("message", "Request blocked by Security Firewall.")
             }
 
-        # --- STAGE 2: SentinelRouterAI (Scope & Intent Classifier with Memory) ---
+        # --- STAGE 2: SentinelRouterAI (Domain Intent Classifier with Memory) ---
         router_result = SentinelRouterAI.classify_and_tag(user_query, session_data, history_snapshot)
-
-        # Handle Out-of-Scope Guardrail
-        if router_result.get("scope") == "OUT_OF_SCOPE":
-            answer_text = router_result.get("guardrail_message", "Sorry, I can only assist with financial reconciliation, gateway fee audits, and settlement disputes.")
-            SESSION_CHAT_MEMORY.append({
-                "user": user_query,
-                "assistant": answer_text,
-                "intent": "OUT_OF_SCOPE"
-            })
-            return {
-                "success": True,
-                "pipeline": {
-                    "agent_1": {
-                        "name": "IngestionAuditorAI",
-                        "status": "DATASET_VERIFIED"
-                    },
-                    "agent_2": {
-                        "name": "SentinelRouterAI",
-                        "status": "BLOCKED_GUARDRAIL",
-                        "scope": "OUT_OF_SCOPE",
-                        "intent": "OUT_OF_SCOPE",
-                        "tags": []
-                    },
-                    "agent_3": {
-                        "name": "ReconAuditorAI",
-                        "status": "SKIPPED",
-                        "tools_called": []
-                    },
-                    "agent_4": {
-                        "name": "PrecisionSynthesizerAI",
-                        "status": "SKIPPED"
-                    }
-                },
-                "answer": answer_text
-            }
 
         # --- STAGE 3: ReconAuditorAI (Tool Execution & Fact Gathering) ---
         auditor_result = ReconAuditorAI.audit_and_gather_facts(user_query, router_result, session_data)

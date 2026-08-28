@@ -20,7 +20,7 @@ dotenv.load_dotenv()
 API_KEY = os.getenv("GEMINI_API_KEY")
 CANDIDATE_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.5-flash"]
 
-ROUTER_SYSTEM_PROMPT = """You are DomainReasonerAI (SentinelRouterAI) — the Domain Intelligence, Scope Guardrail, Contextual Memory, and Intent Classification AI Agent for AutoReconAI.
+ROUTER_SYSTEM_PROMPT = """You are DomainReasonerAI (SentinelRouterAI) — the Domain Intelligence, Contextual Memory, and Intent Classification AI Agent for AutoReconAI.
 
 SYSTEM DOMAIN & DATASET ARCHITECTURE:
 AutoReconAI performs automated 3-way financial reconciliation across 3 core merchant files:
@@ -52,32 +52,22 @@ The 3 files are joined into a unified virtual reconciliation table:
 
 INSTRUCTIONS:
 1. Analyze the user query carefully (handling typos, slang, and abbreviations like "y r sum ordrs mismached", "wat happnd to ord 1002", "recoverable money").
-2. Check if the query is IN_SCOPE (finance, reconciliation, orders, payments, fees, bank deposits, GST tax math, dispute claims, gateway DB) or OUT_OF_SCOPE (movies, cooking, sports, code in other fields, casual personal chat).
-   - NOTE: Polite greetings or courtesy closings (e.g., "thank you", "thanks", "hello", "hi", "ok got it") are IN_SCOPE. For these, set "intent": "COURTESY" and provide a warm helpful 1-line response.
-3. If OUT_OF_SCOPE:
-   - Set "scope": "OUT_OF_SCOPE"
-   - Provide a simple, polite 1-line response in "guardrail_message": "Sorry, I can only assist with financial reconciliation, gateway fee audits, and settlement disputes."
-4. If IN_SCOPE:
-   - Set "scope": "IN_SCOPE"
-   - Set "intent" to the most precise category:
-     * "POINT_METRIC_QUERY" -> When user asks for a specific number, single metric, or targeted amount (e.g. "what is the total recoverable money", "what is our match rate", "how much was overcharged").
-     * "SINGLE_ORDER_TRACE" -> When user asks about a specific Order ID (e.g. "what happened to ORD_1002", "why is ORD_1004 pending").
-     * "DISPUTE_CLAIM" -> When user asks to draft/prepare an official dispute ticket or chargeback claim.
-     * "COMPREHENSIVE_AUDIT" -> When user asks for a full breakdown, complete report, or executive summary of all mismatches.
-     * "GATEWAY_DB_QUERY" -> When user asks to inspect the Razorpay gateway payments database table.
-     * "COURTESY" -> For simple "thank you", "thanks", "hi", "hello" messages.
-   - Extract relevant "#tags" list (e.g. ["#recoverable_amount", "#fee_overcharge", "#ord_1002", "#dropped_webhook", "#tax_calculation", "#gst_details"]).
-   - Extract "extracted_entities": {"order_id": "ORD_xxxx or null", "category": "fee_overcharge | dropped_webhook | orphan_refund | null"}.
-   - Provide a clean 1-line "summary" of the request.
-5. MULTI-TURN REFERENCE RESOLUTION & ANTI-HALLUCINATION:
+2. Classify the request into the most precise intent category:
+   * "POINT_METRIC_QUERY" -> When user asks for a specific number, single metric, or targeted amount (e.g. "what is the total recoverable money", "what is our match rate", "how much was overcharged").
+   * "SINGLE_ORDER_TRACE" -> When user asks about a specific Order ID (e.g. "what happened to ORD_1002", "why is ORD_1004 pending").
+   * "DISPUTE_CLAIM" -> When user asks to draft/prepare an official dispute ticket or chargeback claim.
+   * "COMPREHENSIVE_AUDIT" -> When user asks for a full breakdown, complete report, or executive summary of all mismatches.
+   * "GATEWAY_DB_QUERY" -> When user asks to inspect the Razorpay gateway payments database table.
+3. Extract relevant "#tags" list (e.g. ["#recoverable_amount", "#fee_overcharge", "#ord_1002", "#dropped_webhook", "#tax_calculation", "#gst_details", "#loss_recovery_check"]).
+4. Extract "extracted_entities": {"order_id": "ORD_xxxx or null", "category": "fee_overcharge | dropped_webhook | orphan_refund | null"}.
+5. Provide a clean 1-line "summary" of the request.
+6. MULTI-TURN REFERENCE RESOLUTION & ANTI-HALLUCINATION:
    - If the user query is a follow-up, clarification, or uses pronouns/references like 'it', 'this', 'that', 'why is it', 'is this improper', resolve the target entity (such as order_id) from the RECENT CONVERSATION HISTORY.
    - CRITICAL ANTI-HALLUCINATION RULE: If the previous interaction was a general audit summary or batch list containing multiple orders, DO NOT randomly pick an order ID from that list when the user asks a high-level question ("did I lose money?", "how much is recoverable?"). Set "order_id": null.
 
 Always respond ONLY in valid JSON matching this schema:
 {
-  "scope": "IN_SCOPE" | "OUT_OF_SCOPE",
-  "guardrail_message": "string",
-  "intent": "POINT_METRIC_QUERY" | "SINGLE_ORDER_TRACE" | "DISPUTE_CLAIM" | "COMPREHENSIVE_AUDIT" | "GATEWAY_DB_QUERY" | "COURTESY",
+  "intent": "POINT_METRIC_QUERY" | "SINGLE_ORDER_TRACE" | "DISPUTE_CLAIM" | "COMPREHENSIVE_AUDIT" | "GATEWAY_DB_QUERY",
   "tags": ["string"],
   "extracted_entities": {
     "order_id": "string or null",
@@ -148,28 +138,6 @@ class SentinelRouterAI:
     @staticmethod
     def _heuristic_fallback(query: str, chat_history: list = None) -> dict:
         q = query.lower()
-        if any(w in q for w in ["thank you", "thanks", "thx", "thnak you", "appreciate it"]):
-            return {
-                "scope": "IN_SCOPE",
-                "guardrail_message": "You're very welcome! Let me know if you need any further analysis on your transactions or dispute claims.",
-                "intent": "COURTESY",
-                "tags": ["#courtesy"],
-                "extracted_entities": {"order_id": None, "category": None},
-                "summary": "Courtesy message"
-            }
-
-        out_of_scope_keywords = ["recipe", "iron man", "movie", "weather", "song", "joke", "capital of", "who is", "cooking", "actor"]
-        finance_keywords = ["order", "payment", "recon", "fee", "dispute", "bank", "settle", "utr", "mismatch", "mdr", "gst", "db", "table", "recover", "lost"]
-
-        if any(w in q for w in out_of_scope_keywords) and not any(f in q for f in finance_keywords):
-            return {
-                "scope": "OUT_OF_SCOPE",
-                "guardrail_message": "Sorry, I can only assist with financial reconciliation, gateway fee audits, and settlement disputes.",
-                "intent": "OUT_OF_SCOPE",
-                "tags": ["#out_of_scope"],
-                "extracted_entities": {"order_id": None, "category": None},
-                "summary": "Out of scope request"
-            }
 
         oid_match = re.search(r'\b(ord_?(?:prior_)?\d+)\b', q)
         extracted_oid = oid_match.group(1).upper().replace("ORD", "ORD_") if oid_match else None

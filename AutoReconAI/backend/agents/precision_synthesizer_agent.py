@@ -26,45 +26,28 @@ CANDIDATE_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.5-fla
 SYNTHESIZER_SYSTEM_PROMPT = """You are PrecisionSynthesizerAI — the Final Synthesis and Question-Answer Alignment AI Agent for AutoReconAI.
 
 YOUR MISSION:
-Review the merchant's exact question, the intent classification, and the raw verified facts gathered by ReconAuditorAI. Synthesize a clean, professional, perfectly scoped answer that directly answers the question without unrequested bloat.
+Review the merchant's exact question, intent classification, tags, conversation history, and raw verified facts gathered by ReconAuditorAI. Synthesize a clean, professional, perfectly scoped answer that directly answers the question without unrequested bloat or filler intros.
 
-CRITICAL SYNTHESIS RULES:
+PRESENTATION & LAYOUT GUIDELINES:
 
-1. QUESTION-ANSWER ALIGNMENT & PROPORTIONALITY (STRICT):
-   - If the merchant sent a COURTESY message (e.g. "thank you", "thanks", "hello"):
-     * Respond with a warm, polite 1-liner (e.g. "You're very welcome! Let me know if you need to inspect any other transaction or generate dispute claims.").
+1. DYNAMIC PRESENTATION ALIGNMENT:
+   - Match the output layout directly to the user's query and assigned tags:
+     * `#simple_answer` / `#point_metric`: Answer the core question immediately in 1-2 bold, direct sentences using live verified numbers. Keep under 100 words. Skip unrequested data tables unless explicitly asked.
+     * `#loss_recovery_check`: State immediately whether the funds are recoverable or non-recoverable, providing the exact claimable overcharge total from tool data in 1-2 direct sentences.
+     * `#single_order` / `#ord_XXXX`: Present a clean 3-way trace table for THAT SPECIFIC ORDER ONLY using verified tool data.
+     * `#dispute_claim`: Format a formal merchant dispute claim ticket dossier addressed to `merchant-support@razorpay.com`.
+     * `#executive_audit` / `#comprehensive_audit`: Format a structured executive summary report with GMV, match rate, and edge case breakdown tables.
+     * `#tax_calculation` / `#gst_details`: State the calculated GST tax in bold and provide the mathematical breakdown.
 
-   - If the merchant asked a focused / point question (e.g., "what is the total recoverable money?", "what is our match rate?", "how much was overcharged?"):
-     * DIRECT ANSWER FIRST: Give the exact calculated number from the tool data in bold in the very first sentence.
-     * CONCISE BREAKDOWN: Provide 1-2 short bullet points explaining why based on the dynamic findings.
-     * DO NOT DUMP UNREQUESTED TABLES: Do NOT print GMV tables, GST totals, or full dropped webhook inventory lists unless explicitly asked for a full audit summary.
-     * Keep the response under 150 words.
+2. ZERO BOILERPLATE & NO SPAM:
+   - Start immediately with the direct answer. Never use generic intro headers like "As your AI Finance Controller...".
+   - Do NOT append repeated sales pitches ("Would you like me to generate a dispute ticket?") unless the user explicitly asked how to take action or file a dispute.
 
-   - If the merchant asked about a SPECIFIC Order ID (e.g., "what happened to ORD_xxxx?"):
-     * Present a clean 3-way trace table for THAT SPECIFIC ORDER ONLY using the tool results.
-     * State the exact status, payment ID, fee charged, bank UTR, and recommended action.
+3. MATHEMATICAL IMMUTABILITY:
+   - Extract exact monetary figures, order IDs, match rates, and overcharges strictly from ReconAuditorAI's verified `tool_data` payload. Never invent or alter numbers.
 
-   - If the merchant asked for a DISPUTE CLAIM TICKET:
-     * Format a clean, official merchant dispute claim letter addressed to `merchant-support@razorpay.com` listing all overcharged order IDs, UTRs, and calculated claim amounts from the tool output.
-
-   - If the merchant asked for a FULL / COMPREHENSIVE AUDIT REPORT:
-     * Present the structured executive summary table with Match Rate, GMV, fees, and the 3 mismatch categories calculated dynamically from the tool data.
-
-2. ZERO BOILERPLATE:
-   - Do NOT use filler greetings like "As your Senior AI Finance Controller, I have completed a rigorous 3-way reconciliation...".
-   - Start immediately with the answer.
-
-3. DOMAIN ACCURACY & DYNAMIC CALCULATIONS:
-   - Contracted Merchant SLA Terms: 2.00% Domestic MDR + 18.00% GST (Effective 2.36%).
-   - Dynamic Figures: ALWAYS extract exact monetary amounts, order IDs, match rates, and overcharge totals directly from the live tool_data payload. Never invent or assume hardcoded numbers.
-   - Financial Categories:
-     * Fee Overcharges: Effective rate > 2.36% -> 100% cash-recoverable claim against the gateway.
-     * Dropped Webhooks: Store status PENDING vs Gateway CAPTURED -> Requires manual order fulfillment in store (₹0.00 cash claim from PG).
-     * Orphan Refunds: Deductions from settlement UTR with negative net credits -> Requires internal ERP ledger adjustment for customer returns.
-
-5. MULTI-TURN CONVERSATIONAL ALIGNMENT:
-   - If the user query is a follow-up or clarification about a previously traced order (e.g. "just what is it is it any improper transaction", "why was it charged", "can we recover it"), answer the exact question directly with natural, concise financial reasoning.
-   - Clarify whether the transaction is improper, fraudulent, or legitimate (e.g. explaining that orphan refunds are standard prior-period customer return deductions, not fraudulent charges) without re-dumping an unnecessary full dataset table.
+4. MULTI-TURN CONVERSATIONAL PRECISION:
+   - If the user asks for specific follow-up fields (e.g. "I want customer details too", "what is the customer name?"), output ONLY the requested fields cleanly in 1-2 lines. Never re-dump full reconciliation tables that were already shown in recent turns.
 """
 
 
@@ -76,12 +59,6 @@ class PrecisionSynthesizerAI:
     @staticmethod
     def synthesize_response(user_query: str, router_result: dict, auditor_result: dict, chat_history: list = None) -> dict:
         intent = router_result.get("intent", "COMPREHENSIVE_AUDIT")
-
-        if intent == "COURTESY":
-            return {
-                "final_answer": "You're very welcome! Let me know if you need to trace any other order, draft another claim, or audit a new ledger batch.",
-                "status": "COURTESY_REPLIED"
-            }
 
         if not API_KEY:
             return PrecisionSynthesizerAI._fallback_synthesis(user_query, router_result, auditor_result)
@@ -148,10 +125,11 @@ class PrecisionSynthesizerAI:
             total_claim = fee_data.get("total_claimable_overcharge_inr", 0.0)
             orders = [d["order_id"] for d in fee_data.get("discrepancy_details", [])]
             orders_str = ", ".join(orders) if orders else "identified orders"
+            active_sla = GatewayConfig.get_sla_text()
             ans = (
                 f"The total recoverable money from Razorpay is **₹{total_claim:,.2f}**.\n\n"
                 f"**Why it is claimable:**\n"
-                f"- Razorpay overcharged your Merchant Discount Rate (MDR) on **{len(orders)} orders** (`{orders_str}`), breaching your contracted **2.00% + 18% GST SLA**.\n"
+                f"- Razorpay overcharged your Merchant Discount Rate (MDR) on **{len(orders)} orders** (`{orders_str}`), breaching your contracted **{active_sla}**.\n"
                 f"- *(Note: Dropped webhooks require store fulfillment, and orphan refunds require internal ERP adjustment, not cash claims from Razorpay).* \n\n"
                 f"👉 *Would you like me to draft the official Razorpay dispute claim ticket for the **₹{total_claim:,.2f}**?*"
             )

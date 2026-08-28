@@ -77,7 +77,7 @@ TOOL_DECLARATIONS = [
             },
             {
                 "name": "calculate_fee_discrepancies",
-                "description": "Perform mathematical fee audit comparing actual billed MDR vs contracted 2.00% SLA + 18% GST for all overcharged transactions, returning exact claimable overcharge amounts.",
+                "description": "Perform mathematical fee audit comparing actual billed MDR vs active contracted SLA terms for all overcharged transactions, returning exact claimable overcharge amounts.",
                 "parameters": {
                     "type": "OBJECT",
                     "properties": {},
@@ -115,7 +115,7 @@ TOOL_DECLARATIONS = [
                         },
                         "reason": {
                             "type": "STRING",
-                            "description": "The primary dispute reason (e.g., 'Gateway MDR Rate SLA Violation - 2.75% billed vs 2.00% contracted')."
+                            "description": "The primary dispute reason (e.g., 'Gateway MDR Rate SLA Violation')."
                         }
                     },
                     "required": ["order_ids"]
