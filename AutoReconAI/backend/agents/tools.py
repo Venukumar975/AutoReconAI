@@ -313,28 +313,30 @@ class ReconToolbox:
             "discrepancy_details": overcharged_list
         }
 
+    ALLOWED_TABLES = {"payments"}
+    ALLOWED_COLUMNS = {"payment_id", "order_id", "status", "settlement_utr"}
+
     @staticmethod
     def query_gateway_payments_db(filter_key=None, filter_value=None):
         """
-        Queries Razorpay's authentic Payment Gateway database ('payments' table).
-        Client-side store tables ('orders', 'cart', 'products') are merchant private ledgers
-        and are not accessible to the gateway backend directly.
+        Read-only, strictly parameterized inspection of Razorpay Gateway 'payments' table.
+        Client-side store tables ('orders', 'cart', 'products') are merchant private ledgers.
+        Enforces read-only SQLite access mode for internal DB protection.
         """
         if not os.path.exists(STORE_DB_PATH):
             return {"status": "DB_NOT_FOUND", "message": "store.db does not exist yet."}
 
         try:
-            conn = sqlite3.connect(STORE_DB_PATH)
+            db_uri = f"file:{os.path.abspath(STORE_DB_PATH)}?mode=ro"
+            conn = sqlite3.connect(db_uri, uri=True)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
             if filter_key and filter_value:
                 clean_col = re.sub(r'[^a-zA-Z0-9_]', '', str(filter_key).lower())
-                # Only allow filtering on valid payments columns
-                allowed_cols = ["payment_id", "order_id", "status", "settlement_utr"]
-                if clean_col not in allowed_cols:
+                if clean_col not in ReconToolbox.ALLOWED_COLUMNS:
                     clean_col = "order_id"
-                cursor.execute(f"SELECT * FROM payments WHERE {clean_col} LIKE ? LIMIT 20;", (f"%{filter_value}%",))
+                cursor.execute(f"SELECT * FROM payments WHERE {clean_col} LIKE ? LIMIT 20;", (f"%{str(filter_value).strip()}%",))
             else:
                 cursor.execute("SELECT * FROM payments LIMIT 20;")
 
@@ -342,10 +344,30 @@ class ReconToolbox:
             conn.close()
             return {
                 "gateway_table": "payments",
-                "authority": "Razorpay Gateway Core Database",
+                "authority": "Razorpay Gateway Core Database (Read-Only Defense Active)",
                 "record_count": len(rows),
                 "records": rows,
                 "note": "Client-side merchant store tables (orders/cart/products) are private client data and cannot be queried directly from gateway DB."
+            }
+        except Exception as e:
+            return {"status": "ERROR", "error": str(e)}
+
+    @staticmethod
+    def calculate_tax_breakdown(base_amount: float, tax_rate_pct: float = 18.0) -> dict:
+        """
+        Calculates pure GST tax amount and total deduction on a base MDR processing fee or transaction amount.
+        """
+        try:
+            base = float(base_amount)
+            rate = float(tax_rate_pct)
+            calculated_gst = round((base * rate) / 100.0, 2)
+            total_deduction = round(base + calculated_gst, 2)
+            return {
+                "base_amount_inr": base,
+                "tax_rate_percent": f"{rate:.2f}%",
+                "calculated_gst_tax_inr": calculated_gst,
+                "total_amount_including_tax_inr": total_deduction,
+                "statutory_note": f"Standard Indian GST ({rate:.0f}%) applied under Section 9 of CGST Act."
             }
         except Exception as e:
             return {"status": "ERROR", "error": str(e)}

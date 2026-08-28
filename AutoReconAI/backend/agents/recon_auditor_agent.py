@@ -120,6 +120,24 @@ TOOL_DECLARATIONS = [
                     },
                     "required": ["order_ids"]
                 }
+            },
+            {
+                "name": "calculate_tax_breakdown",
+                "description": "Calculate exact GST tax amount and total deduction on a base MDR processing fee or transaction amount.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "base_amount": {
+                            "type": "NUMBER",
+                            "description": "The base fee or transaction amount in INR (e.g., 15000.00)."
+                        },
+                        "tax_rate_pct": {
+                            "type": "NUMBER",
+                            "description": "The GST tax rate percentage (default 18.0 for standard Indian GST)."
+                        }
+                    },
+                    "required": ["base_amount"]
+                }
             }
         ]
     }
@@ -240,6 +258,11 @@ class ReconAuditorAI:
                 session_data=session_data,
                 order_ids=fn_args.get("order_ids", []),
                 reason=fn_args.get("reason", "Gateway MDR SLA Overcharge")
+            )
+        elif fn_name == "calculate_tax_breakdown":
+            return ReconToolbox.calculate_tax_breakdown(
+                base_amount=fn_args.get("base_amount", 0.0),
+                tax_rate_pct=fn_args.get("tax_rate_pct", 18.0)
             )
         return {"error": f"Unknown tool '{fn_name}'"}
 
