@@ -39,19 +39,19 @@ class AIFinanceEngine:
         """
         history_snapshot = list(SESSION_CHAT_MEMORY)
 
-        # --- STAGE 1: IngestionAuditorAI (Dataset Readiness Inspector) ---
-        ingestion_check = IngestionAuditorAI.audit_ingestion_readiness(user_query, session_data)
-        if not ingestion_check.get("ready"):
+        # --- STAGE 1: SentinelFirewallAI (Security Firewall & Scope Guardrail) ---
+        firewall_check = IngestionAuditorAI.inspect_query_security_and_scope(user_query)
+        if not firewall_check.get("ready"):
             return {
                 "success": True,
                 "pipeline": {
                     "agent_1": {
-                        "name": "IngestionAuditorAI",
-                        "status": "INGESTION_REQUIRED",
-                        "missing_files": ingestion_check.get("missing_files", [])
+                        "name": "SentinelFirewallAI",
+                        "status": firewall_check.get("status", "BLOCKED"),
+                        "scope": firewall_check.get("scope", "OUT_OF_SCOPE")
                     },
                     "agent_2": {
-                        "name": "SentinelRouterAI",
+                        "name": "DomainReasonerAI",
                         "status": "SKIPPED"
                     },
                     "agent_3": {
@@ -63,7 +63,7 @@ class AIFinanceEngine:
                         "status": "SKIPPED"
                     }
                 },
-                "answer": ingestion_check.get("message")
+                "answer": firewall_check.get("message", "Request blocked by Security Firewall.")
             }
 
         # --- STAGE 2: SentinelRouterAI (Scope & Intent Classifier with Memory) ---
