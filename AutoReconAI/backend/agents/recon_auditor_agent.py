@@ -19,7 +19,7 @@ from config_loader import GatewayConfig
 dotenv.load_dotenv()
 
 API_KEY = os.getenv("GEMINI_API_KEY")
-CANDIDATE_MODELS = ["gemini-3.1-flash-lite", "gemini-3.1-flash-lite-preview", "gemini-flash-latest"]
+CANDIDATE_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.5-flash"]
 
 AUDITOR_SYSTEM_PROMPT = """You are ReconAuditorAI — the Fact Gathering and Tool-Calling Execution AI Agent for AutoReconAI.
 
@@ -227,6 +227,23 @@ class ReconAuditorAI:
                         })
                     else:
                         final_text = parts[0].get("text", "") if parts else ""
+
+                        # --- GUARANTEED TOOL CALL ENFORCER ---
+                        intent = router_result.get("intent", "")
+                        tags = router_result.get("tags", [])
+
+                        if intent == "DISPUTE_CLAIM" or any(t in tags for t in ["#dispute_claim", "#dispute_ticket"]):
+                            if "generate_dispute_ticket" not in loop_results:
+                                ticket_output = ReconToolbox.generate_dispute_ticket(session_data)
+                                loop_results["generate_dispute_ticket"] = ticket_output
+                                loop_tools_log.append({"tool": "generate_dispute_ticket", "args": {}, "summary": "Compiled dispute claim ticket"})
+
+                        if any(t in tags for t in ["#fee_overcharge", "#fee_overcharge_table", "#recoverable_amount", "#summary_row"]) or intent in ["POINT_METRIC_QUERY", "COMPREHENSIVE_AUDIT"]:
+                            if "calculate_fee_discrepancies" not in loop_results:
+                                fee_output = ReconToolbox.calculate_fee_discrepancies(session_data)
+                                loop_results["calculate_fee_discrepancies"] = fee_output
+                                loop_tools_log.append({"tool": "calculate_fee_discrepancies", "args": {}, "summary": "Executed calculate_fee_discrepancies()"})
+
                         return {
                             "auditor_summary": final_text,
                             "collected_tool_data": loop_results,
