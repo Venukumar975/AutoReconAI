@@ -1,11 +1,12 @@
 """
-AutoReconAI - Agent 2: SentinelRouterAI
-========================================
-Role: Scope Guardrail & Granular Intent Classifier Agent.
-- Enforces strict domain boundaries (Finance, 3-way reconciliation, PG fees, dispute claims).
-- Classifies queries into granular intents (POINT_METRIC_QUERY, SINGLE_ORDER_TRACE, DISPUTE_CLAIM, COMPREHENSIVE_AUDIT, GATEWAY_DB_QUERY).
-- Extracts structured intent tags and order IDs.
-- Fully dynamic and dataset-agnostic.
+AutoReconAI - Agent 2: DomainReasonerAI (SentinelRouterAI)
+===========================================================
+Role: Domain Context Reasoner, Query Rewriter/Enricher, Intent Tagger & Data Dependency Evaluator.
+- Injected with domain architecture: 3 uploaded file schemas, virtual 3-way matrix join, and 3 commercial edge cases.
+- Explicitly declares required datasets in `data_requirements` for downstream gating.
+- Cleans and enriches raw user queries (fixing typos, de-noising slang, resolving pronouns from chat history) WITHOUT hallucinating unrequested actions.
+- Anti-Guessing Rule: If conversational pronouns cannot be resolved with high confidence from explicit history, preserves ambiguity.
+- Outputs structured intent, tags, confidence score, and data requirements.
 """
 
 import os
@@ -18,7 +19,7 @@ import dotenv
 dotenv.load_dotenv()
 
 API_KEY = os.getenv("GEMINI_API_KEY")
-CANDIDATE_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.5-flash"]
+CANDIDATE_MODELS = ["gemini-3-flash-preview", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview", "gemini-flash-latest"]
 
 ROUTER_SYSTEM_PROMPT = """You are DomainReasonerAI (SentinelRouterAI) — the Domain Intelligence, Contextual Memory, and Intent Classification AI Agent for AutoReconAI.
 
@@ -71,22 +72,25 @@ Always respond ONLY in valid JSON matching this schema:
   "tags": ["string"],
   "extracted_entities": {
     "order_id": "string or null",
-    "category": "string or null"
+    "category": "fee_overcharge | dropped_webhook | orphan_refund | null"
   },
+  "data_requirements": ["store_orders.csv" | "razorpay_settlement_recon.csv" | "bank_statement" | "gateway_db"],
+  "confidence": 0.95,
+  "missing_information": ["string"],
   "summary": "string"
 }
 """
 
-
 from config_loader import GatewayConfig
 
-class SentinelRouterAI:
-    """Agent 2: Evaluates scope, classifies intent, and tags user queries."""
+
+class DomainReasonerAI:
+    """Agent 2: Domain Intelligence, Query Enrichment, Entity Extraction & Data Dependency Evaluator."""
 
     @staticmethod
     def classify_and_tag(user_query: str, session_data: dict = None, chat_history: list = None) -> dict:
         if not API_KEY:
-            return SentinelRouterAI._heuristic_fallback(user_query, chat_history)
+            return DomainReasonerAI._heuristic_fallback(user_query, chat_history)
 
         session_data = session_data or {}
         orders_count = len(session_data.get("orders", []))
@@ -94,11 +98,11 @@ class SentinelRouterAI:
         bank_count = len(session_data.get("bank_txns", []))
 
         ingestion_context = (
-            f"\nINGESTION SESSION STATE:\n"
-            f"- Active Contracted SLA Terms (from config.ini): {GatewayConfig.get_sla_text()}\n"
-            f"- Store Orders Count: {orders_count}\n"
-            f"- Settlement Records Count: {settlements_count}\n"
-            f"- Bank Transactions Count: {bank_count}\n"
+            f"\nACTIVE SESSION DATASET STATE:\n"
+            f"- Contracted SLA Terms (from config.ini): {GatewayConfig.get_sla_text()}\n"
+            f"- Loaded Store Orders Count: {orders_count}\n"
+            f"- Loaded Settlement Records Count: {settlements_count}\n"
+            f"- Loaded Bank Transactions Count: {bank_count}\n"
         )
 
         history_context = ""
@@ -110,11 +114,14 @@ class SentinelRouterAI:
                 if len(a_text) > 160:
                     a_text = a_text[:160] + "..."
                 history_lines.append(f"[Turn {idx}] User: \"{u_text}\" -> Assistant: \"{a_text}\"")
-            history_context = "\nRECENT CONVERSATION HISTORY (Last 5 Interactions):\n" + "\n".join(history_lines) + "\n"
+            history_context = "\nEXPLICIT RECENT CONVERSATION HISTORY (Last 5 Interactions):\n" + "\n".join(history_lines) + "\n"
 
         payload = {
             "contents": [
-                {"role": "user", "parts": [{"text": f"{ROUTER_SYSTEM_PROMPT}{ingestion_context}{history_context}\nCURRENT USER QUERY:\n{user_query}"}]}
+                {
+                    "role": "user",
+                    "parts": [{"text": f"{DOMAIN_REASONER_SYSTEM_PROMPT}{ingestion_context}{history_context}\nRAW MERCHANT USER QUERY:\n\"{user_query}\""}]
+                }
             ],
             "generationConfig": {
                 "responseMimeType": "application/json"
@@ -127,22 +134,33 @@ class SentinelRouterAI:
                 resp = requests.post(url, json=payload, timeout=25)
                 if resp.status_code == 200:
                     text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-                    return json.loads(text)
+                    parsed = json.loads(text)
+                    return {
+                        "scope": "IN_SCOPE",
+                        "enriched_query": parsed.get("enriched_query", user_query),
+                        "intent": parsed.get("intent", "COMPREHENSIVE_AUDIT"),
+                        "tags": parsed.get("tags", []),
+                        "extracted_entities": parsed.get("extracted_entities", {}),
+                        "data_requirements": parsed.get("data_requirements", []),
+                        "confidence": float(parsed.get("confidence", 0.95)),
+                        "missing_information": parsed.get("missing_information", []),
+                        "summary": parsed.get("summary", user_query)
+                    }
                 elif resp.status_code == 429:
                     continue
             except Exception:
                 continue
 
-        return SentinelRouterAI._heuristic_fallback(user_query, chat_history)
+        return DomainReasonerAI._heuristic_fallback(user_query, chat_history)
 
     @staticmethod
     def _heuristic_fallback(query: str, chat_history: list = None) -> dict:
         q = query.lower()
 
+        # Extract order ID directly or resolve from chat history
         oid_match = re.search(r'\b(ord_?(?:prior_)?\d+)\b', q)
         extracted_oid = oid_match.group(1).upper().replace("ORD", "ORD_") if oid_match else None
 
-        # Resolve entity from chat_history if query uses pronouns
         if not extracted_oid and chat_history and any(w in q for w in ["it", "this", "that", "improper", "why", "what is"]):
             for turn in reversed(chat_history):
                 hist_text = f"{turn.get('user', '')} {turn.get('assistant', '')}".lower()
@@ -153,25 +171,42 @@ class SentinelRouterAI:
 
         intent = "COMPREHENSIVE_AUDIT"
         tags = ["#reconciliation_audit"]
+        data_reqs = ["store_orders.csv", "razorpay_settlement_recon.csv", "bank_statement"]
+        enriched_query = query
 
         if extracted_oid:
             intent = "SINGLE_ORDER_TRACE"
             tags = [f"#{extracted_oid.lower()}", "#order_trace"]
-        elif "recover" in q or "how much" in q or "match rate" in q or "total fee" in q or "lost" in q:
+            enriched_query = f"Inspect and trace the 3-way reconciliation lifecycle for order {extracted_oid} across Store, Gateway, and Bank statement."
+            data_reqs = ["store_orders.csv", "razorpay_settlement_recon.csv", "bank_statement"]
+        elif any(k in q for k in ["recover", "how much", "match rate", "total fee", "lost", "claimable"]):
             intent = "POINT_METRIC_QUERY"
             tags = ["#point_metric", "#recoverable_amount"]
-        elif "dispute" in q or "ticket" in q or "claim" in q:
+            enriched_query = "Calculate the total recoverable money and MDR fee overcharges from Razorpay."
+            data_reqs = ["razorpay_settlement_recon.csv"]
+        elif any(k in q for k in ["dispute", "ticket", "claim", "draft claim"]):
             intent = "DISPUTE_CLAIM"
-            tags = ["#fee_overcharge", "#razorpay_dispute"]
-        elif "gateway db" in q or "payments table" in q:
+            tags = ["#dispute_claim", "#fee_overcharge"]
+            enriched_query = "Draft an official Razorpay Merchant Dispute Claim Ticket for all detected MDR fee overcharges."
+            data_reqs = ["razorpay_settlement_recon.csv"]
+        elif any(k in q for k in ["gateway db", "payments table", "database"]):
             intent = "GATEWAY_DB_QUERY"
             tags = ["#gateway_db"]
+            enriched_query = "Query the Razorpay gateway payments database table."
+            data_reqs = ["gateway_db"]
 
         return {
             "scope": "IN_SCOPE",
-            "guardrail_message": "",
+            "enriched_query": enriched_query,
             "intent": intent,
             "tags": tags,
             "extracted_entities": {"order_id": extracted_oid, "category": None},
+            "data_requirements": data_reqs,
+            "confidence": 0.90,
+            "missing_information": [],
             "summary": query
         }
+
+
+# Backward compatibility alias
+SentinelRouterAI = DomainReasonerAI

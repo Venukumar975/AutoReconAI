@@ -9,8 +9,13 @@ sys.path.insert(0, BACKEND_DIR)
 
 from config_loader import GatewayConfig
 
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-STORE_DB_PATH = os.path.join(ROOT_DIR, "store.db")
+POSSIBLE_DB_PATHS = [
+    os.path.join(BACKEND_DIR, "..", "store.db"),
+    os.path.join(BACKEND_DIR, "..", "..", "store.db"),
+    os.path.join(CURRENT_DIR, "store.db"),
+    os.path.abspath("store.db")
+]
+STORE_DB_PATH = next((p for p in POSSIBLE_DB_PATHS if os.path.exists(os.path.abspath(p))), os.path.abspath(os.path.join(BACKEND_DIR, "..", "store.db")))
 
 
 class ReconToolbox:
@@ -21,10 +26,10 @@ class ReconToolbox:
         settlements = session_data.get("settlements", [])
         bank_txns = session_data.get("bank_txns", [])
 
-        if not orders or not settlements:
+        if not orders or not settlements or not bank_txns:
             return {
                 "status": "NO_SESSION_DATA",
-                "message": "No active reconciliation data loaded. Please ensure Store Orders CSV and Settlement CSV are uploaded."
+                "message": "No active reconciliation data loaded. Please ensure Store Orders CSV, Bank Statement(PDF/Excel) and Settlement CSV are uploaded."
             }
 
         orders_by_id = {o["order_id"]: o for o in orders}
@@ -36,7 +41,7 @@ class ReconToolbox:
         total_gst = sum(float(s.get("tax", 0.0)) for s in settlements)
         total_bank_deposited = sum(float(b.get("credit", 0.0)) for b in bank_txns if b.get("is_gateway_credit"))
 
-        mdr_threshold = GatewayConfig.get_mdr_rate() + 0.0005
+        mdr_threshold = GatewayConfig.get_mdr_rate() + 0.0005 # To remove rounding errors and improve precision 
 
         dropped_webhooks = []
         fee_overcharges = []

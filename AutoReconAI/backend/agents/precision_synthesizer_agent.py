@@ -1,15 +1,14 @@
 """
 AutoReconAI - Agent 4: PrecisionSynthesizerAI
 ==============================================
-Role: Response Formatter, Question-Answer Alignment & Precision Editor Agent.
-- Takes User Query + SentinelRouter Intent/Tags + ReconAuditor Raw Tool Facts.
-- Enforces strict Question-Answer Alignment and Proportionality:
-  * Short targeted questions -> Direct punchy answers with exact figures from live tool data (NO unrequested table dumps).
-  * Single order queries -> Laser-focused 3-way trace of that order only.
-  * Dispute requests -> Formal Razorpay claim dossier with dynamic order breakdowns.
-  * Comprehensive audit requests -> Multi-table executive report.
-  * Courtesy messages -> Warm, polite 1-liner.
-- 100% Dynamic and dataset-agnostic (extracts all figures from live tool outputs).
+Role: Pure Presentation Formatter, Question-Answer Alignment & Precision Editor Agent.
+- Takes: Enriched Query + Tags from DomainReasonerAI + Live Verified Tool Data from ReconAuditorAI + 5-Turn Memory Window.
+- Strictly enforces Zero Boilerplate (no "As your AI Finance Controller...", straight to the answer).
+- Enforces Tag-Driven Proportionality:
+  * `#point_metric`: Exact bold number in sentence 1 + 1-2 bullet points (under 150 words, NO unrequested tables).
+  * `#single_order`: Focused 3-way trace table for THAT order only.
+  * `#dispute_claim`: Formal Razorpay dispute claim letter using exact calculated overcharge amounts.
+  * `#executive_audit`: Structured multi-table executive summary.
 """
 
 import os
@@ -21,9 +20,9 @@ import dotenv
 dotenv.load_dotenv()
 
 API_KEY = os.getenv("GEMINI_API_KEY")
-CANDIDATE_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.5-flash"]
+CANDIDATE_MODELS = ["gemini-3-flash-preview", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview", "gemini-flash-latest"]
 
-SYNTHESIZER_SYSTEM_PROMPT = """You are PrecisionSynthesizerAI — the Final Synthesis and Question-Answer Alignment AI Agent for AutoReconAI.
+SYNTHESIZER_SYSTEM_PROMPT = """You are PrecisionSynthesizerAI — the Presentation Formatter and Question-Answer Alignment AI Agent for AutoReconAI.
 
 YOUR MISSION:
 Review the merchant's exact question, intent classification, tags, conversation history, and raw verified facts gathered by ReconAuditorAI. Synthesize a clean, professional, perfectly scoped answer that directly answers the question without unrequested bloat or filler intros.
@@ -89,14 +88,15 @@ PRESENTATION & LAYOUT GUIDELINES:
    - If the user asks for specific follow-up fields (e.g. "I want customer details too", "what is the customer name?"), output ONLY the requested fields cleanly in 1-2 lines. Never re-dump full reconciliation tables that were already shown in recent turns.
 """
 
-
 from config_loader import GatewayConfig
 
+
 class PrecisionSynthesizerAI:
-    """Agent 4: Evaluates facts against user query and synthesizes the exact, non-bloated answer."""
+    """Agent 4: Formats and synthesizes the exact, non-bloated, tag-driven response."""
 
     @staticmethod
     def synthesize_response(user_query: str, router_result: dict, auditor_result: dict, chat_history: list = None) -> dict:
+        enriched_query = router_result.get("enriched_query") or user_query
         intent = router_result.get("intent", "COMPREHENSIVE_AUDIT")
 
         if not API_KEY:
@@ -106,6 +106,9 @@ class PrecisionSynthesizerAI:
         tool_data = auditor_result.get("collected_tool_data", {})
         auditor_summary = auditor_result.get("auditor_summary", "")
         active_sla = GatewayConfig.get_sla_text()
+
+        if not API_KEY:
+            return PrecisionSynthesizerAI._fallback_synthesis(enriched_query, router_result, auditor_result)
 
         history_context = ""
         if chat_history:
@@ -122,13 +125,13 @@ class PrecisionSynthesizerAI:
             f"{SYNTHESIZER_SYSTEM_PROMPT}\n\n"
             f"ACTIVE CONTRACTED SLA TERMS (from config.ini): {active_sla}\n"
             f"{history_context}"
-            f"CURRENT MERCHANT USER QUERY: \"{user_query}\"\n"
+            f"ENRICHED MERCHANT QUERY: \"{enriched_query}\"\n"
             f"INTENT CLASSIFICATION: {intent}\n"
             f"TAGS: {', '.join(tags)}\n\n"
             f"VERIFIED FINANCIAL FACTS & DATA GATHERED BY RECONAUDITORAI:\n"
             f"{json.dumps(tool_data, indent=2)}\n\n"
             f"AUDITOR FINDINGS:\n{auditor_summary}\n\n"
-            f"TASK: Synthesize the final, direct, proportional response following the synthesis rules strictly using the facts and active SLA terms above."
+            f"TASK: Synthesize the final direct, zero-boilerplate response following the tag-driven presentation rules strictly."
         )
 
         payload = {
@@ -152,7 +155,7 @@ class PrecisionSynthesizerAI:
             except Exception:
                 continue
 
-        return PrecisionSynthesizerAI._fallback_synthesis(user_query, router_result, auditor_result)
+        return PrecisionSynthesizerAI._fallback_synthesis(enriched_query, router_result, auditor_result)
 
     @staticmethod
     def _fallback_synthesis(user_query: str, router_result: dict, auditor_result: dict) -> dict:
