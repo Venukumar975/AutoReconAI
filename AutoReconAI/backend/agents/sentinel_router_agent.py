@@ -18,7 +18,7 @@ import dotenv
 dotenv.load_dotenv()
 
 API_KEY = os.getenv("GEMINI_API_KEY")
-CANDIDATE_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.5-flash"]
+CANDIDATE_MODELS = ["gemini-3.1-flash-lite", "gemini-3.1-flash-lite-preview", "gemini-flash-latest"]
 
 ROUTER_SYSTEM_PROMPT = """You are DomainReasonerAI (SentinelRouterAI) — the Domain Intelligence, Contextual Memory, and Intent Classification AI Agent for AutoReconAI.
 

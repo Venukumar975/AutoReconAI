@@ -18,7 +18,7 @@ import dotenv
 dotenv.load_dotenv()
 
 API_KEY = os.getenv("GEMINI_API_KEY")
-CANDIDATE_MODELS = ["gemini-3-flash-preview", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview", "gemini-flash-latest"]
+CANDIDATE_MODELS = ["gemini-3.1-flash-lite", "gemini-3.1-flash-lite-preview", "gemini-flash-latest"]
 
 # Layer 1: Deterministic Pattern Whitelist / Blocklist
 DETERMINISTIC_INJECTION_PATTERNS = [

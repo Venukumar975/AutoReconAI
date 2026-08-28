@@ -47,9 +47,9 @@ const AIAssistant = (() => {
     if (btnClose) btnClose.addEventListener('click', closeDrawer);
     if (btnExpand) btnExpand.addEventListener('click', toggleWideDrawer);
 
-    if (chipAudit) chipAudit.addEventListener('click', () => askGeminiAI("Audit reconciliation batch and explain all mismatches across the 3 categories."));
-    if (chipDispute) chipDispute.addEventListener('click', () => askGeminiAI("Draft an official Razorpay Merchant Dispute Claim Ticket for all fee overcharges found."));
-    if (chipSummary) chipSummary.addEventListener('click', () => askGeminiAI("Provide a full executive financial recovery summary including GMV, overcharges, and risk status."));
+    if (chipAudit) chipAudit.addEventListener('click', () => askGeminiAI("Give me an itemized date-wise fee overcharges table with a total summary row at the bottom."));
+    if (chipDispute) chipDispute.addEventListener('click', () => askGeminiAI("Draft a formal Razorpay Merchant Dispute Claim Ticket email for all fee overcharges found."));
+    if (chipSummary) chipSummary.addEventListener('click', () => askGeminiAI("Provide a full financial recovery summary table of all mismatches grouped by edge cases."));
 
     if (btnSend && inputChat) {
       btnSend.addEventListener('click', handleCustomUserMessage);
@@ -238,11 +238,17 @@ const AIAssistant = (() => {
 
     const formattedContent = formatMarkdown(rawText);
 
+    let copyBtnHtml = '';
+    if (rawText.includes("merchant-disputes@") || rawText.includes("Dispute Claim")) {
+      copyBtnHtml = `<div style="margin-top: 10px; text-align: right;"><button class="btn-copy-dispute" onclick="navigator.clipboard.writeText(this.getAttribute('data-raw')); this.innerText='✅ Copied to Clipboard!';" data-raw="${rawText.replace(/"/g, '&quot;')}" style="background: #2563eb; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.82rem; cursor: pointer; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">📋 Copy Dispute Email</button></div>`;
+    }
+
     div.innerHTML = `
       <div class="ai-bot-avatar">🤖</div>
       <div class="ai-msg-content">
         ${pipelineHtml}
         <div>${formattedContent}</div>
+        ${copyBtnHtml}
       </div>
     `;
     chatFeed.appendChild(div);

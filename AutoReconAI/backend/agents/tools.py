@@ -378,39 +378,38 @@ class ReconToolbox:
             return {"status": "ERROR", "error": str(e)}
 
     @staticmethod
-    def generate_dispute_ticket(session_data, order_ids, reason="Gateway MDR SLA Overcharge"):
-        settlements = session_data.get("settlements", [])
-        matched_settlements = [s for s in settlements if s.get("order_id") in order_ids]
+    def generate_dispute_ticket(session_data, order_ids=None, reason="Gateway MDR SLA Overcharge"):
+        fee_audit = ReconToolbox.calculate_fee_discrepancies(session_data)
+        discrepancies = fee_audit.get("discrepancy_details", [])
 
-        total_claim = 0.0
+        if order_ids and isinstance(order_ids, list) and len(order_ids) > 0:
+            target_discrepancies = [d for d in discrepancies if d["order_id"] in order_ids]
+            if not target_discrepancies:
+                target_discrepancies = discrepancies
+        else:
+            target_discrepancies = discrepancies
+
         orders_summary = []
-        contracted_mdr = GatewayConfig.get_mdr_rate()
-        gst_rate = GatewayConfig.get_gst_rate()
+        total_claim = 0.0
 
-        for s in matched_settlements:
-            oid = s["order_id"]
-            amount = float(s.get("amount", 0.0))
-            fee = float(s.get("fee", 0.0))
-            tax = float(s.get("tax", 0.0))
-            expected_fee = amount * contracted_mdr
-            expected_tax = expected_fee * gst_rate
-            overcharge = max(0.0, (fee + tax) - (expected_fee + expected_tax))
-            total_claim += overcharge
-
+        for d in target_discrepancies:
+            claim_val = float(d.get("overcharge_amount", 0.0))
+            total_claim += claim_val
             orders_summary.append({
-                "order_id": oid,
-                "payment_id": s.get("payment_id", "-"),
-                "settlement_utr": s.get("settlement_utr", "-"),
-                "billed_amount": f"INR {amount:,.2f}",
-                "charged_mdr": f"INR {fee:,.2f} + GST INR {tax:,.2f}",
-                "contracted_mdr": f"INR {expected_fee:,.2f} + GST INR {expected_tax:,.2f}",
-                "claim_amount": f"INR {round(overcharge, 2):,.2f}"
+                "order_id": d["order_id"],
+                "payment_id": d["payment_id"],
+                "settlement_utr": d["settlement_utr"],
+                "billed_amount": f"INR {float(d['billed_amount']):,.2f}",
+                "charged_mdr": f"INR {float(d['charged_fee']):,.2f} + GST INR {float(d['charged_tax']):,.2f}",
+                "contracted_mdr": f"INR {float(d['contracted_fee']):,.2f} + GST INR {float(d['contracted_tax']):,.2f}",
+                "claim_amount": f"INR {claim_val:,.2f}"
             })
 
         return {
             "ticket_type": "OFFICIAL_MERCHANT_DISPUTE_CLAIM",
-            "recipient": "merchant-support@razorpay.com",
-            "subject": f"URGENT: MDR Fee Overcharge Dispute Claim - Batch Ref #{len(order_ids)} Orders",
+            "from_email": "merchant-disputes@freshmart-store.com",
+            "to_email": "merchant-support@razorpay.com",
+            "subject": f"URGENT: MDR Fee Overcharge Dispute Claim - Batch Ref #{len(target_discrepancies)} Orders",
             "total_claim_amount_inr": round(total_claim, 2),
             "contracted_sla_terms": GatewayConfig.get_sla_text(),
             "disputed_orders": orders_summary,
