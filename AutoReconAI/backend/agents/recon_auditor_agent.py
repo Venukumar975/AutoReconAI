@@ -27,17 +27,11 @@ YOUR MISSION:
 Analyze the merchant's enriched query and DomainReasonerAI's intent tags. Call the necessary tools to retrieve all required facts, calculations, and ledger data from the live session:
 - get_reconciliation_overview: For match rates, GMV, total fees, and high-level stats.
 - calculate_fee_discrepancies: For exact MDR fee overcharge calculations (2.00% SLA breach).
+- calculate_refund_fee_leakage: For calculating non-reversed MDR fees + 18% GST overhead losses on customer refunds.
 - inspect_order_lifecycle: For tracing a specific Order ID across 3 ledgers.
 - list_mismatches: For anomaly lists (dropped webhooks, orphan refunds, fee overcharges).
 - query_gateway_payments_db: For inspecting Razorpay gateway core payments database.
 - generate_dispute_ticket: For compiling dispute claim ticket payloads.
-
-CRITICAL EXECUTION RULES:
-- If intent is "DISPUTE_CLAIM" or tags contain "#dispute_claim", you MUST call `calculate_fee_discrepancies` or `generate_dispute_ticket`.
-- If intent is "SINGLE_ORDER_TRACE" or tags contain a specific order ID, you MUST call `inspect_order_lifecycle`.
-- If intent is "POINT_METRIC_QUERY", call `calculate_fee_discrepancies` (for overcharge/claim questions) or `get_reconciliation_overview` (for match rate/GMV questions).
-
-After executing the tools, summarize the verified numerical facts directly.
 """
 
 TOOL_DECLARATIONS = [
@@ -46,6 +40,15 @@ TOOL_DECLARATIONS = [
             {
                 "name": "get_reconciliation_overview",
                 "description": "Get high-level financial reconciliation health metrics across all 3 ledgers: Total Settlement Transactions, GMV, Total Fees, Total GST, Total Bank Deposited, Match Rate, and Mismatch breakdown.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {},
+                    "required": []
+                }
+            },
+            {
+                "name": "calculate_refund_fee_leakage",
+                "description": "Calculates dynamic non-reversed MDR fee and 18% GST cash losses on customer refunds. Call this when analyzing customer refunds, orphan refunds, non-recoverable losses, or refund fee overheads.",
                 "parameters": {
                     "type": "OBJECT",
                     "properties": {},
@@ -299,6 +302,8 @@ class ReconAuditorAI:
             return ReconToolbox.inspect_order_lifecycle(session_data, order_id=fn_args.get("order_id", ""))
         elif fn_name == "calculate_fee_discrepancies":
             return ReconToolbox.calculate_fee_discrepancies(session_data)
+        elif fn_name == "calculate_refund_fee_leakage":
+            return ReconToolbox.calculate_refund_fee_leakage(session_data)
         elif fn_name == "query_gateway_payments_db":
             return ReconToolbox.query_gateway_payments_db(
                 filter_key=fn_args.get("filter_key"),

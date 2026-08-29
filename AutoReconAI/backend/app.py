@@ -327,6 +327,7 @@ def generate_linked_grid():
         total_bank_deposited = 0.0
         matched_orders_count = 0
         total_orders_count = 0
+        unique_mismatched_oids = set()
 
         contracted_mdr = GatewayConfig.get_mdr_rate()
         gst_rate = GatewayConfig.get_gst_rate()
@@ -381,6 +382,9 @@ def generate_linked_grid():
 
                 is_mismatched = is_webhook_pending or is_fee_overcharged or is_orphan_refund
 
+                if is_mismatched:
+                    unique_mismatched_oids.add(oid)
+
                 if not is_mismatched and order_status == "FULFILLED":
                     matched_orders_count += 1
                     matched_badge = "✅ Matched"
@@ -431,7 +435,7 @@ def generate_linked_grid():
 
         grouped_utr_list.sort(key=get_utr_sort_key)
 
-        mismatched_count = total_orders_count - matched_orders_count
+        mismatched_count = len(unique_mismatched_oids)
         match_rate = round((matched_orders_count / max(total_orders_count, 1)) * 100, 1)
 
         return jsonify({
