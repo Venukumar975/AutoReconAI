@@ -146,70 +146,40 @@ def export_razorpay_settlement_csv():
     return rows
 
 
+from edge_case_simulators.simulate_dropped_webhooks import apply_dropped_webhooks_simulation
+from edge_case_simulators.simulate_fee_overcharges import apply_fee_overcharges_simulation
+from edge_case_simulators.simulate_non_reversed_refunds import apply_non_reversed_refunds_simulation
+
+
 def apply_edge_case_mutations(config):
     """
-    Applies Post-Processing Anomaly Mutations directly on store.db based on config.ini:
-    - Edge Case 1 (Dropped Webhook): Updates N orders to 'PENDING'.
-    - Edge Case 2 (Fee Overcharge): Recalculates N payments at ~2.75% MDR.
-    - Edge Case 4 (Orphan Refund): Inserts negative refund deduction row unlinked to today's orders.
+    Applies Post-Processing Anomaly Mutations directly on store.db using modular simulators:
+    - Edge Case 1 (Dropped Webhook): simulate_dropped_webhooks.py
+    - Edge Case 2 (Fee Overcharge): simulate_fee_overcharges.py
+    - Edge Case 3 (Non-Reversed Refunds): simulate_non_reversed_refunds.py
     """
     enable_edge_cases = config.getboolean("EDGE_CASES", "enable_edge_cases", fallback=True)
     if not enable_edge_cases:
-        print("[MUTATOR] Edge Cases disabled in config.ini. Exporting 100% matched clean data.")
+        print("[MUTATOR] Edge Cases disabled in config.ini. Exporting 100% matched clean baseline data.")
         return
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    # 1. Edge Case 1: Dropped Webhook (Pick N completely random orders to set to PENDING)
     dropped_count = config.getint("EDGE_CASES", "dropped_webhook_count", fallback=2)
-    if dropped_count > 0:
-        cursor.execute("SELECT order_id FROM orders WHERE order_status = 'FULFILLED' ORDER BY RANDOM() LIMIT ?;", (dropped_count,))
-        target_orders = [r["order_id"] for r in cursor.fetchall()]
-        for oid in target_orders:
-            cursor.execute("UPDATE orders SET order_status = 'PENDING' WHERE order_id = ?;", (oid,))
-        print(f"[MUTATOR] Edge Case 1 Applied: Set {len(target_orders)} random orders ({', '.join(target_orders)}) to PENDING status.")
-
-    # 2. Edge Case 2: Gateway Fee Overcharge (Pick N completely random payments to overcharge dynamically)
     fee_overcharge_count = config.getint("EDGE_CASES", "fee_overcharge_count", fallback=3)
+    orphan_count = config.getint("EDGE_CASES", "orphan_refund_count", fallback=1)
+
     base_mdr = config.getfloat("CONTRACTED_RATES", "mdr_rate_percent", fallback=2.0) / 100.0
     gst_rate = config.getfloat("CONTRACTED_RATES", "gst_rate_percent", fallback=18.0) / 100.0
 
-    if fee_overcharge_count > 0:
-        cursor.execute("SELECT payment_id, amount FROM payments ORDER BY RANDOM() LIMIT ?;", (fee_overcharge_count,))
-        target_payments = cursor.fetchall()
-        for p in target_payments:
-            amt = p["amount"]
-            # Dynamically bill +0.50% to +0.75% above the contracted SLA
-            overcharge_rate = base_mdr + random.uniform(0.005, 0.0075)
-            fee = round(amt * overcharge_rate, 2)
-            tax = round(fee * gst_rate, 2)
-            net_credit = round(amt - fee - tax, 2)
-            cursor.execute("""
-                UPDATE payments 
-                SET fee = ?, tax = ?, net_credit = ? 
-                WHERE payment_id = ?;
-            """, (fee, tax, net_credit, p["payment_id"]))
-        print(f"[MUTATOR] Edge Case 2 Applied: Overcharged {len(target_payments)} random payments with rates between {(base_mdr+0.005)*100:.2f}% and {(base_mdr+0.0075)*100:.2f}%.")
+    print("\n[MUTATOR] Applying Config-Driven Isolated Edge Case Simulations...")
 
-    # 3. Edge Case 3: Orphan Customer Refund (-₹1,200 prior-period deduction under random UTR)
-    orphan_count = config.getint("EDGE_CASES", "orphan_refund_count", fallback=1)
-    if orphan_count > 0:
-        cursor.execute("SELECT settlement_utr FROM payments ORDER BY RANDOM() LIMIT 1;")
-        ref_row = cursor.fetchone()
-        utr_target = ref_row["settlement_utr"] if ref_row else "CMS202605011081"
-        for i in range(1, orphan_count + 1):
-            pid = f"pay_REFUND_{random.randint(100, 999)}"
-            old_oid = f"ORD_PRIOR_{900 + i}"
-            cursor.execute("""
-                INSERT OR REPLACE INTO payments (payment_id, order_id, amount, fee, tax, net_credit, settlement_utr, status)
-                VALUES (?, ?, 0.00, 0.00, 0.00, -1200.00, ?, 'captured');
-            """, (pid, old_oid, utr_target))
-        print(f"[MUTATOR] Edge Case 3 Applied: Inserted {orphan_count} orphan refund deduction (-INR 1,200.00) under random UTR {utr_target}.")
+    # 1. Edge Case 1: Dropped Webhooks
+    apply_dropped_webhooks_simulation(DB_PATH, dropped_count)
 
-    conn.commit()
-    conn.close()
+    # 2. Edge Case 2: Gateway Fee Overcharges
+    apply_fee_overcharges_simulation(DB_PATH, fee_overcharge_count, base_mdr=base_mdr, gst_rate=gst_rate)
+
+    # 3. Edge Case 3: Dynamic Non-Reversed Customer Refunds
+    apply_non_reversed_refunds_simulation(DB_PATH, orphan_count, base_mdr=base_mdr, gst_rate=gst_rate)
 
 
 def prepare_bank_transactions(payment_rows, config):

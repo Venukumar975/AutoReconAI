@@ -21,7 +21,7 @@ dotenv.load_dotenv()
 API_KEY = os.getenv("GEMINI_API_KEY")
 CANDIDATE_MODELS = ["gemini-3-flash-preview", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview", "gemini-flash-latest"]
 
-ROUTER_SYSTEM_PROMPT = """You are DomainReasonerAI (SentinelRouterAI) — the Domain Intelligence, Contextual Memory, and Intent Classification AI Agent for AutoReconAI.
+DOMAIN_REASONER_SYSTEM_PROMPT = ROUTER_SYSTEM_PROMPT = """You are DomainReasonerAI (SentinelRouterAI) — the Domain Intelligence, Contextual Memory, and Intent Classification AI Agent for AutoReconAI.
 
 SYSTEM DOMAIN & DATASET ARCHITECTURE:
 AutoReconAI performs automated 3-way financial reconciliation across 3 core merchant files:

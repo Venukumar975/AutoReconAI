@@ -101,6 +101,47 @@ class ReconToolbox:
         }
 
     @staticmethod
+    def calculate_refund_fee_leakage(session_data):
+        settlements = session_data.get("settlements", [])
+        refund_entries = [
+            s for s in settlements 
+            if s.get("type") == "refund" or s.get("status") == "refunded" or float(s.get("net_credit", 0.0)) < 0
+        ]
+
+        refund_details = []
+        total_refund_gmv = 0.0
+        total_fee_leakage = 0.0
+
+        for r in refund_entries:
+            amt = float(r.get("amount", 0.0))
+            if amt == 0.0 and float(r.get("net_credit", 0.0)) < 0:
+                amt = abs(float(r.get("net_credit", 0.0)))
+            fee = float(r.get("fee", 0.0))
+            tax = float(r.get("tax", 0.0))
+            unreversed_loss = round(fee + tax, 2)
+            total_refund_gmv += amt
+            total_fee_leakage += unreversed_loss
+
+            refund_details.append({
+                "order_id": r.get("order_id", "-"),
+                "payment_id": r.get("payment_id", "-"),
+                "refund_amount": round(amt, 2),
+                "retained_mdr_fee": round(fee, 2),
+                "retained_gst_tax": round(tax, 2),
+                "unreversed_fee_loss": unreversed_loss,
+                "settlement_utr": r.get("settlement_utr", "-")
+            })
+
+        return {
+            "refund_count": len(refund_entries),
+            "total_refund_gmv_inr": round(total_refund_gmv, 2),
+            "total_fee_leakage_inr": round(total_fee_leakage, 2),
+            "claimable_from_gateway_inr": 0.00,
+            "refund_policy_note": "Razorpay transaction fees and GST are non-refundable on processed refunds.",
+            "refund_details": refund_details
+        }
+
+    @staticmethod
     def list_mismatches(session_data, category="all"):
         orders = session_data.get("orders", [])
         settlements = session_data.get("settlements", [])

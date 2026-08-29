@@ -41,7 +41,7 @@ class AIFinanceEngine:
         history_snapshot = list(SESSION_CHAT_MEMORY)
 
         # --- STAGE 1: SentinelFirewallAI (Security Firewall & Scope Guardrail) ---
-        firewall_check = IngestionAuditorAI.inspect_query_security_and_scope(user_query)
+        firewall_check = SentinelFirewallAI.inspect_query_security_and_scope(user_query)
         if not firewall_check.get("ready"):
             return {
                 "success": True,
@@ -67,8 +67,8 @@ class AIFinanceEngine:
                 "answer": firewall_check.get("message", "Request blocked by Security Firewall.")
             }
 
-        # --- STAGE 2: SentinelRouterAI (Domain Intent Classifier with Memory) ---
-        router_result = SentinelRouterAI.classify_and_tag(user_query, session_data, history_snapshot)
+        # --- STAGE 2: DomainReasonerAI (Domain Intent Classifier with Memory) ---
+        router_result = DomainReasonerAI.classify_and_tag(user_query, session_data, history_snapshot)
 
         # --- STAGE 3: ReconAuditorAI (Tool Execution & Fact Gathering) ---
         auditor_result = ReconAuditorAI.audit_and_gather_facts(user_query, router_result, session_data)
@@ -100,7 +100,7 @@ class AIFinanceEngine:
                     "intent": router_result.get("intent", "COMPREHENSIVE_AUDIT"),
                     "tags": router_result.get("tags", []),
                     "entities": router_result.get("extracted_entities", {}),
-                    "data_requirements": data_requirements,
+                    "data_requirements": router_result.get("data_requirements", []),
                     "confidence": router_result.get("confidence", 0.95),
                     "enriched_query": router_result.get("enriched_query", user_query),
                     "summary": router_result.get("summary", "")
