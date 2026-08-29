@@ -72,6 +72,15 @@ class ReconToolbox:
         matched_count = max(0, total_settlement_txns - mismatched_count)
         match_rate = round((matched_count / max(total_settlement_txns, 1)) * 100, 1)
 
+        # Pre-format default_table_md for Mismatch Summary Table
+        summary_table_lines = [
+            "| Mismatch Category | Count | Affected Order IDs | Money Lost? | Recoverable Amount (INR) |",
+            "| :--- | :--- | :--- | :--- | :--- |",
+            f"| Fee Overcharges | {len(set(fee_overcharges))} | {', '.join(sorted(list(set(fee_overcharges)))[:5]) or '-'} | Yes | ₹{sum(float(s.get('fee', 0.0)) + float(s.get('tax', 0.0)) - (float(s.get('amount', 0.0)) * GatewayConfig.get_mdr_rate() * (1 + GatewayConfig.get_gst_rate())) for s in settlements if (float(s.get('fee', 0.0))/max(float(s.get('amount', 0.0)), 1)) > (GatewayConfig.get_mdr_rate() + 0.0005)):.2f} |",
+            f"| Dropped Webhooks | {len(set(dropped_webhooks))} | {', '.join(sorted(list(set(dropped_webhooks)))[:5]) or '-'} | No | ₹0.00 |",
+            f"| Orphan Refunds | {len(set(orphan_refunds))} | {', '.join(sorted(list(set(orphan_refunds)))[:5]) or '-'} | No | ₹0.00 |"
+        ]
+
         return {
             "total_settlement_transactions": total_settlement_txns,
             "total_store_orders": total_store_orders,
@@ -83,6 +92,7 @@ class ReconToolbox:
             "matched_transactions_count": matched_count,
             "mismatched_transactions_count": mismatched_count,
             "contracted_sla_terms": GatewayConfig.get_sla_text(),
+            "default_table_md": "\n".join(summary_table_lines),
             "mismatch_categories": {
                 "dropped_webhooks": {
                     "count": len(set(dropped_webhooks)),
@@ -103,6 +113,9 @@ class ReconToolbox:
     @staticmethod
     def calculate_refund_fee_leakage(session_data):
         settlements = session_data.get("settlements", [])
+        orders = session_data.get("orders", [])
+        orders_by_id = {o["order_id"]: o for o in orders}
+
         refund_entries = [
             s for s in settlements 
             if s.get("type") == "refund" or s.get("status") == "refunded" or float(s.get("net_credit", 0.0)) < 0
@@ -113,6 +126,7 @@ class ReconToolbox:
         total_fee_leakage = 0.0
 
         for r in refund_entries:
+            oid = r.get("order_id", "-")
             amt = float(r.get("amount", 0.0))
             if amt == 0.0 and float(r.get("net_credit", 0.0)) < 0:
                 amt = abs(float(r.get("net_credit", 0.0)))
@@ -122,8 +136,13 @@ class ReconToolbox:
             total_refund_gmv += amt
             total_fee_leakage += unreversed_loss
 
+            order_info = orders_by_id.get(oid)
+            raw_dt = r.get("created_at") or (order_info.get("created_at") if order_info else "") or ""
+            date_str = str(raw_dt)[:10] if raw_dt else "-"
+
             refund_details.append({
-                "order_id": r.get("order_id", "-"),
+                "date": date_str,
+                "order_id": oid,
                 "payment_id": r.get("payment_id", "-"),
                 "refund_amount": round(amt, 2),
                 "retained_mdr_fee": round(fee, 2),
@@ -132,12 +151,26 @@ class ReconToolbox:
                 "settlement_utr": r.get("settlement_utr", "-")
             })
 
+        # Pre-format default_table_md for Refund Fee Loss
+        refund_table_lines = [
+            "| Date | Order ID | Payment ID | Settlement UTR | Refund Amount (INR) | Retained MDR (INR) | Retained GST (18%) (INR) | Un-Reversed Cash Loss (INR) |",
+            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |"
+        ]
+        for rd in refund_details:
+            refund_table_lines.append(
+                f"| {rd.get('date', '-')} | {rd['order_id']} | {rd['payment_id']} | {rd['settlement_utr']} | ₹{rd['refund_amount']:,.2f} | ₹{rd['retained_mdr_fee']:,.2f} | ₹{rd['retained_gst_tax']:,.2f} | ₹{rd['unreversed_fee_loss']:,.2f} |"
+            )
+        refund_table_lines.append(
+            f"| **TOTALS** | **{len(refund_entries)} Refunds** | - | - | **₹{total_refund_gmv:,.2f}** | - | - | **₹{total_fee_leakage:,.2f}** |"
+        )
+
         return {
             "refund_count": len(refund_entries),
             "total_refund_gmv_inr": round(total_refund_gmv, 2),
             "total_fee_leakage_inr": round(total_fee_leakage, 2),
             "claimable_from_gateway_inr": 0.00,
             "refund_policy_note": "Razorpay transaction fees and GST are non-refundable on processed refunds.",
+            "default_table_md": "\n".join(refund_table_lines),
             "refund_details": refund_details
         }
 
@@ -232,9 +265,22 @@ class ReconToolbox:
                         "anomalies": anomalies
                     })
 
+        # Pre-format default_table_md for Mismatches List
+        mismatch_table_lines = [
+            "| Order ID | Payment ID | Settlement UTR | Billed Amount (INR) | Store Status | Detected Anomalies | Required Action |",
+            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- |"
+        ]
+        for res in results:
+            issues = "; ".join(a["issue"] for a in res["anomalies"])
+            actions = "; ".join(a["action_required"] for a in res["anomalies"])
+            mismatch_table_lines.append(
+                f"| {res['order_id']} | {res['payment_id']} | {res['settlement_utr']} | ₹{res['billed_amount']:,.2f} | {res['store_status']} | {issues} | {actions} |"
+            )
+
         return {
             "total_mismatched_orders": len(results),
             "filter_applied": category,
+            "default_table_md": "\n".join(mismatch_table_lines),
             "mismatches": results
         }
 
@@ -317,6 +363,9 @@ class ReconToolbox:
     @staticmethod
     def calculate_fee_discrepancies(session_data):
         settlements = session_data.get("settlements", [])
+        orders = session_data.get("orders", [])
+        orders_by_id = {o["order_id"]: o for o in orders}
+
         if not settlements:
             return {"status": "NO_DATA", "message": "No settlement data available."}
 
@@ -333,6 +382,10 @@ class ReconToolbox:
             tax = float(s.get("tax", 0.0))
             rate = (fee / amount) if amount > 0 else 0.0
 
+            order_info = orders_by_id.get(oid)
+            raw_dt = s.get("created_at") or (order_info.get("created_at") if order_info else "") or ""
+            date_str = str(raw_dt)[:10] if raw_dt else "-"
+
             if rate > mdr_threshold:
                 expected_fee = amount * contracted_mdr
                 expected_tax = expected_fee * gst_rate
@@ -340,6 +393,7 @@ class ReconToolbox:
                 if overcharge > 0:
                     total_overcharge += overcharge
                     overcharged_list.append({
+                        "date": date_str,
                         "order_id": oid,
                         "payment_id": s.get("payment_id", "-"),
                         "settlement_utr": s.get("settlement_utr", "-"),
@@ -352,10 +406,51 @@ class ReconToolbox:
                         "overcharge_amount": round(overcharge, 2)
                     })
 
+        # Dynamically impute SLA header parameters from GatewayConfig!
+        contracted_mdr_pct = contracted_mdr * 100.0
+        gst_rate_pct = gst_rate * 100.0
+        sla_effective_pct = contracted_mdr_pct * (1.0 + gst_rate)
+        sla_header = f"Contracted Fee + Tax ({contracted_mdr_pct:.2f}% MDR + {gst_rate_pct:.2f}% GST = {sla_effective_pct:.2f}% SLA)"
+
+        table_lines = [
+            f"| Date | Order ID | Payment ID | Settlement UTR | Billed Amount (INR) | Charged Fee + Tax (INR) | Effective Rate | {sla_header} | Overcharge Amount (INR) |",
+            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |"
+        ]
+
+        total_billed = 0.0
+        total_charged = 0.0
+        total_contracted = 0.0
+
+        for item in overcharged_list:
+            t_date = item.get("date", "-")
+            t_oid = item["order_id"]
+            t_pid = item["payment_id"]
+            t_utr = item["settlement_utr"]
+            t_billed = item["billed_amount"]
+            t_charged = item["charged_fee"] + item["charged_tax"]
+            t_eff_rate = item["effective_charged_rate"]
+            t_contracted = item["contracted_fee"] + item["contracted_tax"]
+            t_overcharge = item["overcharge_amount"]
+
+            total_billed += t_billed
+            total_charged += t_charged
+            total_contracted += t_contracted
+
+            table_lines.append(
+                f"| {t_date} | {t_oid} | {t_pid} | {t_utr} | ₹{t_billed:,.2f} | ₹{t_charged:,.2f} | {t_eff_rate} | ₹{t_contracted:,.2f} | ₹{t_overcharge:,.2f} |"
+            )
+
+        table_lines.append(
+            f"| **TOTALS** | **{len(overcharged_list)} Orders** | - | - | **₹{total_billed:,.2f}** | **₹{total_charged:,.2f}** | - | **₹{total_contracted:,.2f}** | **₹{total_overcharge:,.2f}** |"
+        )
+
+        default_table_md = "\n".join(table_lines)
+
         return {
             "contracted_sla_terms": GatewayConfig.get_sla_text(),
             "total_overcharged_orders": len(overcharged_list),
             "total_claimable_overcharge_inr": round(total_overcharge, 2),
+            "default_table_md": default_table_md,
             "discrepancy_details": overcharged_list
         }
 
