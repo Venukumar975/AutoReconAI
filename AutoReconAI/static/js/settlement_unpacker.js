@@ -70,6 +70,8 @@ const SettlementUnpacker = (() => {
     document.getElementById('unpacker-payout').innerText = `₹${formatInr(p.net_bank_payout)}`;
     document.getElementById('unpacker-mdr').innerText = `₹${formatInr(p.total_mdr_expense)}`;
     document.getElementById('unpacker-gst').innerText = `₹${formatInr(p.total_gst_itc)}`;
+    const refundLossEl = document.getElementById('unpacker-refund-loss');
+    if (refundLossEl) refundLossEl.innerText = `₹${formatInr(p.total_non_recoverable_refund_loss)}`;
 
     document.getElementById('unpacker-payout-sub').innerText = `${p.proportions?.net_payout_percent || 0}% of gross sales credited to bank`;
     document.getElementById('unpacker-mdr-sub').innerText = `${p.proportions?.mdr_expense_percent || 0}% gateway processing fee deducted`;
@@ -113,21 +115,21 @@ const SettlementUnpacker = (() => {
           const val = data.datasets[0].data[index];
           if (val === undefined) return;
           const pct = ((val / gmv) * 100).toFixed(2);
-          const textVal = `₹${val.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+          const textVal = `₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
           const textPct = `(${pct}%)`;
 
           ctx.save();
           ctx.textAlign = 'center';
           ctx.textBaseline = 'bottom';
           
-          // Draw Amount Label
-          ctx.font = 'bold 12px Inter, sans-serif';
+          // Draw Amount Label (Exact 2 Decimal Places)
+          ctx.font = 'bold 11.5px Inter, sans-serif';
           ctx.fillStyle = '#0f172a';
           ctx.fillText(textVal, bar.x, bar.y - 16);
 
           // Draw Percentage Label
-          ctx.font = '600 11.5px JetBrains Mono, monospace';
-          ctx.fillStyle = index === 0 ? '#1d4ed8' : (index === 1 ? '#047857' : (index === 2 ? '#b45309' : (index === 3 ? '#6d28d9' : '#be123c')));
+          ctx.font = '600 11px JetBrains Mono, monospace';
+          ctx.fillStyle = index === 0 ? '#1d4ed8' : (index === 1 ? '#047857' : (index === 2 ? '#b45309' : (index === 3 ? '#6d28d9' : (index === 4 ? '#be123c' : '#dc2626'))));
           ctx.fillText(textPct, bar.x, bar.y - 2);
 
           ctx.restore();
@@ -143,7 +145,8 @@ const SettlementUnpacker = (() => {
           'Net Bank Deposited',
           'Gateway MDR Fee',
           'Claimable 18% GST (ITC)',
-          'Customer Return Refunds'
+          'Customer Return Refunds',
+          'Non-Recoverable Refund Loss'
         ],
         datasets: [{
           label: 'Amount (INR ₹)',
@@ -152,25 +155,28 @@ const SettlementUnpacker = (() => {
             p.net_bank_payout || 0,
             p.total_mdr_expense || 0,
             p.total_gst_itc || 0,
-            p.total_customer_refunds || 0
+            p.total_customer_refunds || 0,
+            p.total_non_recoverable_refund_loss || 0
           ],
           backgroundColor: [
             'rgba(59, 130, 246, 0.85)',   // Blue (GMV)
             'rgba(16, 185, 129, 0.85)',   // Green (Net Bank)
             'rgba(245, 158, 11, 0.85)',   // Amber (MDR)
             'rgba(139, 92, 246, 0.85)',   // Purple (GST ITC)
-            'rgba(244, 63, 94, 0.85)'     // Rose (Refunds)
+            'rgba(244, 63, 94, 0.85)',    // Rose (Refunds)
+            'rgba(225, 29, 72, 0.85)'     // Crimson Red (Refund Loss)
           ],
           borderColor: [
             '#2563eb',
             '#059669',
             '#d97706',
             '#7c3aed',
-            '#e11d48'
+            '#e11d48',
+            '#be123c'
           ],
           borderWidth: 1.5,
           borderRadius: 8,
-          barPercentage: 0.55
+          barPercentage: 0.50
         }]
       },
       plugins: [topLabelsPlugin],
@@ -199,7 +205,7 @@ const SettlementUnpacker = (() => {
                 const val = context.raw || 0;
                 const gmv = p.total_gmv || 1;
                 const pct = ((val / gmv) * 100).toFixed(2);
-                return ` INR ₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2 })} (${pct}% of Total Gross Sales)`;
+                return ` INR ₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${pct}% of Total Gross Sales)`;
               }
             }
           }
@@ -208,7 +214,7 @@ const SettlementUnpacker = (() => {
           x: {
             grid: { display: false },
             ticks: {
-              font: { weight: '600', size: 12 },
+              font: { weight: '600', size: 11 },
               color: '#334155'
             }
           },
@@ -232,26 +238,31 @@ const SettlementUnpacker = (() => {
     const mdrPct = props.mdr_expense_percent || 2.51;
     const gstPct = props.gst_itc_percent || 0.45;
     const refundsPct = props.refunds_percent || 3.40;
+    const lossPct = props.non_recoverable_loss_percent || 0.04;
 
     const flowNet = document.getElementById('flow-net');
     const flowMdr = document.getElementById('flow-mdr');
     const flowGst = document.getElementById('flow-gst');
     const flowRefunds = document.getElementById('flow-refunds');
+    const flowLoss = document.getElementById('flow-loss');
 
     if (flowNet) flowNet.style.width = `${netPct}%`;
     if (flowMdr) flowMdr.style.width = `${mdrPct}%`;
     if (flowGst) flowGst.style.width = `${gstPct}%`;
     if (flowRefunds) flowRefunds.style.width = `${refundsPct}%`;
+    if (flowLoss) flowLoss.style.width = `${lossPct}%`;
 
     const lblNet = document.getElementById('legend-net-label');
     const lblMdr = document.getElementById('legend-mdr-label');
     const lblGst = document.getElementById('legend-gst-label');
     const lblRefunds = document.getElementById('legend-refunds-label');
+    const lblLoss = document.getElementById('legend-loss-label');
 
     if (lblNet) lblNet.innerText = `Net Bank Payout: ${netPct}%`;
     if (lblMdr) lblMdr.innerText = `Gateway MDR Fee: ${mdrPct}%`;
     if (lblGst) lblGst.innerText = `Claimable GST ITC: ${gstPct}%`;
     if (lblRefunds) lblRefunds.innerText = `Customer Refunds: ${refundsPct}%`;
+    if (lblLoss) lblLoss.innerText = `Un-Reversed Refund Loss: ${lossPct}%`;
 
     const totalTakeRate = (mdrPct + gstPct).toFixed(2);
     const takeRateText = document.getElementById('flow-take-rate-text');

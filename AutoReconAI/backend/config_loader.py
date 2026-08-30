@@ -84,3 +84,65 @@ class GatewayConfig:
                 "fee_overcharge_count": 3,
                 "orphan_refund_count": 2
             }
+
+
+MODEL_PATHS = [
+    os.path.join(CURRENT_DIR, "..", "..", "ai_models.ini"),
+    os.path.join(CURRENT_DIR, "..", "ai_models.ini"),
+    os.path.join(CURRENT_DIR, "ai_models.ini")
+]
+
+
+def load_model_config() -> configparser.ConfigParser:
+    config = configparser.ConfigParser()
+    for path in MODEL_PATHS:
+        abs_path = os.path.abspath(path)
+        if os.path.exists(abs_path):
+            config.read(abs_path, encoding="utf-8")
+            return config
+    return config
+
+
+class ModelConfig:
+
+    @staticmethod
+    def get_primary_model() -> str:
+        """Returns primary Gemini model from ai_models.ini or environment variable."""
+        env_model = os.getenv("GEMINI_MODEL")
+        if env_model:
+            return env_model.strip()
+
+        config = load_model_config()
+        try:
+            return config.get("GEMINI_MODELS", "primary_model", fallback="gemini-3.6-flash").strip()
+        except Exception:
+            return "gemini-3.6-flash"
+
+    @staticmethod
+    def get_model_fallback_chain() -> list:
+        """
+        Returns an ordered list of Gemini model candidates.
+        Ensures zero-downtime automatic fallback if any model name is sunset or rate-limited.
+        """
+        candidates = []
+
+        # 1. Environment variable override if present
+        env_model = os.getenv("GEMINI_MODEL")
+        if env_model:
+            candidates.append(env_model.strip())
+
+        config = load_model_config()
+        if config.has_section("GEMINI_MODELS"):
+            for key, val in config.items("GEMINI_MODELS"):
+                clean_val = val.strip()
+                if clean_val and clean_val not in candidates:
+                    candidates.append(clean_val)
+
+        # 2. Hardcoded resilient default fallbacks
+        defaults = ["gemini-3.6-flash", "gemini-1.5-flash", "gemini-2.5-pro", "gemini-1.5-pro", "gemini-pro"]
+        for d in defaults:
+            if d not in candidates:
+                candidates.append(d)
+
+        return candidates
+

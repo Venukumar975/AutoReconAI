@@ -19,8 +19,10 @@ import dotenv
 
 dotenv.load_dotenv()
 
+from config_loader import GatewayConfig, ModelConfig
+
 API_KEY = os.getenv("GEMINI_API_KEY")
-CANDIDATE_MODELS = ["gemini-3-flash-preview", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview", "gemini-flash-latest"]
+CANDIDATE_MODELS = ModelConfig.get_model_fallback_chain()
 
 SYNTHESIZER_SYSTEM_PROMPT = """You are PrecisionSynthesizerAI — the Presentation Formatter and Question-Answer Alignment AI Agent for AutoReconAI.
 
@@ -88,8 +90,6 @@ PRESENTATION & LAYOUT GUIDELINES:
 4. MULTI-TURN CONVERSATIONAL PRECISION:
    - If the user asks for specific follow-up fields (e.g. "I want customer details too", "what is the customer name?"), output ONLY the requested fields cleanly in 1-2 lines. Never re-dump full reconciliation tables that were already shown in recent turns.
 """
-
-from config_loader import GatewayConfig
 
 
 class PrecisionSynthesizerAI:

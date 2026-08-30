@@ -55,23 +55,35 @@
         <span class="pillar-badge">⚡ Tax Deductible</span>
       </div>
 
+      <!-- Non-Recoverable Refund Loss -->
+      <div class="pillar-card refund-loss" style="border-top: 4px solid #e11d48; background: linear-gradient(135deg, #ffffff 0%, #fff1f2 100%);">
+        <span class="pillar-label" style="color: #be123c;">💸 Non-Recoverable Refund Loss</span>
+        <span class="pillar-amount" id="unpacker-refund-loss" style="color: #be123c;">₹0.00</span>
+        <span class="pillar-subtext">Un-reversed MDR + GST fee leakage retained on customer returns</span>
+        <span class="pillar-badge" style="background: #ffe4e6; color: #be123c;">⚠️ Retained Fee Loss</span>
+      </div>
+
     </div>
 
     <!-- 3. Proportional Visual Flow Bar -->
     <div class="unpacker-flow-container">
       <div class="flow-header">
-        <span class="flow-title">📊 Gross Sales Revenue Distribution ($100 Proportional Split)</span>
+        <span class="flow-title">⚖️ Proportional Revenue Split (Per ₹100 of Gross Sales = Exactly ₹100.00)</span>
         <span style="font-size: 13px; color: #64748b;" id="flow-take-rate-text">Effective Gateway Take-Rate: 2.36%</span>
       </div>
       <div class="flow-bar">
-        <div class="flow-segment net" id="flow-net" style="width: 97.64%;" title="Net Deposited"></div>
-        <div class="flow-segment mdr" id="flow-mdr" style="width: 2.00%;" title="MDR Expense"></div>
-        <div class="flow-segment gst" id="flow-gst" style="width: 0.36%;" title="GST ITC"></div>
+        <div class="flow-segment net" id="flow-net" style="width: 93.64%;" title="Net Deposited"></div>
+        <div class="flow-segment mdr" id="flow-mdr" style="width: 2.51%;" title="MDR Expense"></div>
+        <div class="flow-segment gst" id="flow-gst" style="width: 0.45%;" title="GST ITC"></div>
+        <div class="flow-segment refunds" id="flow-refunds" style="width: 3.40%;" title="Customer Refunds"></div>
+        <div class="flow-segment loss" id="flow-loss" style="width: 0.04%; background: #e11d48;" title="Un-Reversed Refund Loss"></div>
       </div>
       <div class="flow-legend">
-        <div class="legend-item"><div class="legend-dot net"></div><span id="legend-net-label">Net Bank Payout: 97.64%</span></div>
-        <div class="legend-item"><div class="legend-dot mdr"></div><span id="legend-mdr-label">Gateway MDR Fee: 2.00%</span></div>
-        <div class="legend-item"><div class="legend-dot gst"></div><span id="legend-gst-label">Claimable GST ITC: 0.36%</span></div>
+        <div class="legend-item"><div class="legend-dot net"></div><span id="legend-net-label">Net Bank Payout: 93.64%</span></div>
+        <div class="legend-item"><div class="legend-dot mdr"></div><span id="legend-mdr-label">Gateway MDR Fee: 2.51%</span></div>
+        <div class="legend-item"><div class="legend-dot gst"></div><span id="legend-gst-label">Claimable GST ITC: 0.45%</span></div>
+        <div class="legend-item"><div class="legend-dot refunds"></div><span id="legend-refunds-label">Customer Refunds: 3.40%</span></div>
+        <div class="legend-item"><div class="legend-dot loss" style="background: #e11d48;"></div><span id="legend-loss-label">Un-Reversed Refund Loss: 0.04%</span></div>
       </div>
     </div>
 

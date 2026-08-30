@@ -87,29 +87,32 @@ VERIFIED FINANCIAL SETTLEMENT METRICS:
 - Prior-Period Return Deductions: {unpacked_facts.get('orphan_refunds_count', 0)} orders (Total Netting: INR {unpacked_facts.get('orphan_refunds_amount', 0.0):,.2f})
 """
 
+        from config_loader import ModelConfig
+
         if GENAI_AVAILABLE and api_key:
-            try:
-                client = genai.Client(api_key=api_key)
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=[
-                        {"role": "user", "parts": [{"text": f"{TAX_OPTIMIZER_SYSTEM_PROMPT}\n\n{facts_summary}"}]}
-                    ]
-                )
-                
-                raw_text = response.text.strip()
-                # Clean code blocks if present
-                clean_json_match = re.search(r'\{.*\}', raw_text, re.DOTALL)
-                if clean_json_match:
-                    parsed = json.loads(clean_json_match.group(0))
-                    if "financial_faqs" in parsed and isinstance(parsed["financial_faqs"], list):
-                        return {
-                            "executive_summary": parsed.get("executive_summary", "Settlement batch successfully unpacked and verified."),
-                            "financial_faqs": parsed["financial_faqs"],
-                            "generated_by": "TaxOptimizerAI (Live Gemini Generative Synthesis)"
-                        }
-            except Exception as e:
-                print(f"[TaxOptimizerAI] LLM Call warning: {e}, falling back to deterministic synthesis.")
+            for model_name in ModelConfig.get_model_fallback_chain():
+                try:
+                    client = genai.Client(api_key=api_key)
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=[
+                            {"role": "user", "parts": [{"text": f"{TAX_OPTIMIZER_SYSTEM_PROMPT}\n\n{facts_summary}"}]}
+                        ]
+                    )
+                    
+                    raw_text = response.text.strip()
+                    # Clean code blocks if present
+                    clean_json_match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+                    if clean_json_match:
+                        parsed = json.loads(clean_json_match.group(0))
+                        if "financial_faqs" in parsed and isinstance(parsed["financial_faqs"], list):
+                            return {
+                                "executive_summary": parsed.get("executive_summary", "Settlement batch successfully unpacked and verified."),
+                                "financial_faqs": parsed["financial_faqs"],
+                                "generated_by": "TaxOptimizerAI (Live Gemini Generative Synthesis)"
+                            }
+                except Exception as e:
+                    continue
 
         # Deterministic Domain Fallback (Exact math, zero template breakdown)
         total_gmv = unpacked_facts.get('total_gmv', 0.0)

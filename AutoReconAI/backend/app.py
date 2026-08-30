@@ -321,34 +321,31 @@ def generate_linked_grid():
             utr_groups_dict[utr_key].append(s)
 
         grouped_utr_list = []
-        total_gmv = 0.0
-        total_fees = 0.0
-        total_gst = 0.0
-        total_bank_deposited = 0.0
-        matched_orders_count = 0
-        total_orders_count = 0
-        unique_mismatched_oids = set()
-
         contracted_mdr = GatewayConfig.get_mdr_rate()
         gst_rate = GatewayConfig.get_gst_rate()
         mdr_threshold = contracted_mdr + 0.0005
 
+        positive_settlements = [s for s in settlements if float(s.get("net_credit", 0.0)) > 0]
+        refund_settlements = [s for s in settlements if float(s.get("net_credit", 0.0)) < 0 or s.get("type") == "refund"]
+
+        total_gmv = sum(float(o.get("gross_amount", 0.0)) for o in orders)
+        if total_gmv == 0.0:
+            total_gmv = sum(float(s.get("amount", 0.0)) for s in positive_settlements)
+
+        total_fees = sum(float(s.get("fee", 0.0)) for s in positive_settlements)
+        total_gst = sum(float(s.get("tax", 0.0)) for s in positive_settlements)
+        pos_net_payout = sum(float(s.get("net_credit", 0.0)) for s in positive_settlements)
+        total_customer_refunds = sum(abs(float(s.get("amount", 0.0))) if float(s.get("amount", 0.0)) != 0 else abs(float(s.get("net_credit", 0.0))) for s in refund_settlements)
+
+        total_bank_deposited = pos_net_payout - total_customer_refunds
+        matched_orders_count = 0
+        total_orders_count = 0
+        unique_mismatched_oids = set()
+
         for utr, s_list in utr_groups_dict.items():
-            group_gross = sum(s["amount"] for s in s_list)
-            group_fee = sum(s["fee"] for s in s_list)
-            group_tax = sum(s["tax"] for s in s_list)
-            group_net = sum(s["net_credit"] for s in s_list)
-
-            total_gmv += group_gross
-            total_fees += group_fee
-            total_gst += group_tax
-
             bank_info = bank_by_utr.get(utr)
-            bank_deposited = bank_info["credit"] if bank_info else 0.0
+            bank_deposited = float(bank_info.get("deposit_credit") or bank_info.get("credit") or 0.0) if bank_info else 0.0
             bank_date = bank_info.get("txn_date", "") if bank_info else "⚠️ Bank Credit Missing"
-            if bank_deposited > 0:
-                total_bank_deposited += bank_deposited
-
             child_orders = []
 
             for s in s_list:
@@ -375,10 +372,14 @@ def generate_linked_grid():
                     formatted_date = "-"
 
                 # Detect 3 Core Edge Case Mismatches dynamically against config
-                fee_rate = (s["fee"] / s["amount"]) if s["amount"] > 0 else 0.0
+                fee = float(s.get("fee", 0.0))
+                amount = float(s.get("amount", 0.0))
+                net_credit = float(s.get("net_credit", 0.0))
+
+                fee_rate = (fee / amount) if amount > 0 else 0.0
                 is_fee_overcharged = (fee_rate > mdr_threshold)
                 is_webhook_pending = (order_status == "PENDING")
-                is_orphan_refund = (oid not in orders_by_id or s["net_credit"] < 0)
+                is_orphan_refund = (oid not in orders_by_id or net_credit < 0)
 
                 is_mismatched = is_webhook_pending or is_fee_overcharged or is_orphan_refund
 

@@ -119,6 +119,24 @@ const App = (() => {
         }
       } else {
         proceedBtn.disabled = true;
+        proceedSubtext.innerText = 'Upload all 3 files above to unlock the 3-Way Reconciliation Matrix.';
+        proceedSubtext.style.color = '#64748b';
+
+        navRecon.classList.add('disabled');
+        const badgeRecon = document.getElementById('badge-recon');
+        if (badgeRecon) {
+          badgeRecon.innerText = 'Locked';
+          badgeRecon.style.backgroundColor = '#94a3b8';
+          badgeRecon.style.color = '#ffffff';
+        }
+
+        navUnpacker.classList.add('disabled');
+        const badgeUnpacker = document.getElementById('badge-unpacker');
+        if (badgeUnpacker) {
+          badgeUnpacker.innerText = 'Locked';
+          badgeUnpacker.style.backgroundColor = '#94a3b8';
+          badgeUnpacker.style.color = '#ffffff';
+        }
       }
     } catch (e) {
       console.error(e);

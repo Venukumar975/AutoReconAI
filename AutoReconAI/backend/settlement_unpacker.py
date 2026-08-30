@@ -52,7 +52,21 @@ class SettlementUnpackerEngine:
         orphan_refund_orders = []
 
         total_overcharge_amount = 0.0
-        total_orphan_refund_amount = 0.0
+        total_gmv = sum(float(o.get("gross_amount", 0.0)) for o in orders)
+        if total_gmv == 0.0:
+            total_gmv = sum(float(s.get("amount", 0.0)) for s in settlements if float(s.get("net_credit", 0.0)) > 0)
+
+        positive_settlements = [s for s in settlements if float(s.get("net_credit", 0.0)) > 0]
+        refund_settlements = [s for s in settlements if float(s.get("net_credit", 0.0)) < 0 or s.get("type") == "refund"]
+
+        total_mdr_fee = sum(float(s.get("fee", 0.0)) for s in positive_settlements)
+        total_gst_itc = sum(float(s.get("tax", 0.0)) for s in positive_settlements)
+        pos_net_payout = sum(float(s.get("net_credit", 0.0)) for s in positive_settlements)
+
+        total_orphan_refund_amount = sum(abs(float(s.get("amount", 0.0))) if float(s.get("amount", 0.0)) != 0 else abs(float(s.get("net_credit", 0.0))) for s in refund_settlements)
+        total_non_recoverable_refund_loss = sum(float(s.get("fee", 0.0)) + float(s.get("tax", 0.0)) for s in refund_settlements)
+
+        total_net_payout = pos_net_payout - total_orphan_refund_amount
 
         for s in settlements:
             oid = s.get("order_id", "")
@@ -66,12 +80,6 @@ class SettlementUnpackerEngine:
             order_info = orders_by_id.get(oid)
             order_status = order_info.get("order_status") if order_info else "UNKNOWN"
 
-            if amount > 0:
-                total_gmv += amount
-            total_mdr_fee += fee
-            total_gst_itc += tax
-            total_net_payout += net_credit
-
             fee_rate = (fee / amount) if amount > 0 else 0.0
             is_overcharged = (fee_rate > mdr_threshold)
             is_dropped_webhook = (order_status == "PENDING")
@@ -79,7 +87,6 @@ class SettlementUnpackerEngine:
 
             if is_orphan_refund:
                 orphan_amt = abs(net_credit)
-                total_orphan_refund_amount += orphan_amt
                 orphan_refund_orders.append({
                     "order_id": oid,
                     "payment_id": payment_id,
@@ -116,18 +123,26 @@ class SettlementUnpackerEngine:
             else:
                 clean_orders.append(oid)
 
-        # Proportions of Gross GMV for visual diagram
-        gmv_safe = max(total_gmv, 1.0)
-        net_payout_pct = round((total_net_payout / gmv_safe) * 100, 2)
-        mdr_fee_pct = round((total_mdr_fee / gmv_safe) * 100, 2)
-        gst_itc_pct = round((total_gst_itc / gmv_safe) * 100, 2)
-        effective_take_rate = round(((total_mdr_fee + total_gst_itc) / gmv_safe) * 100, 2)
+        # Import contracted rates directly from master config.ini via GatewayConfig
+        contracted_mdr_pct = round(GatewayConfig.get_mdr_rate() * 100.0, 2)      # e.g. 2.00%
+        contracted_gst_pct = round(GatewayConfig.get_gst_rate() * 100.0, 2)      # e.g. 18.00%
+        effective_take_rate = round(GatewayConfig.get_effective_sla_rate() * 100.0, 2) # e.g. 2.36%
+
+        mdr_fee_pct = contracted_mdr_pct
+        gst_itc_pct = round(contracted_mdr_pct * GatewayConfig.get_gst_rate(), 2)
+
+        # Calculate remaining gross allocation proportions
+        total_settlement_volume = max(1.0, total_net_payout + total_mdr_fee + total_gst_itc + total_orphan_refund_amount + total_non_recoverable_refund_loss)
+        refunds_pct = round((total_orphan_refund_amount / total_settlement_volume) * 100, 2)
+        non_recoverable_loss_pct = round((total_non_recoverable_refund_loss / total_settlement_volume) * 100, 2)
+        net_payout_pct = round(100.0 - (mdr_fee_pct + gst_itc_pct + refunds_pct + non_recoverable_loss_pct), 2)
 
         # Call Agent 5: TaxOptimizerAI for dynamic generative executive insights & FAQs
         from agents.tax_optimizer_agent import TaxOptimizerAI
         unpacked_facts = {
             "total_gmv": round(total_gmv, 2),
             "net_bank_payout": round(total_net_payout, 2),
+            "gross_bank_payout": round(pos_net_payout, 2),
             "total_mdr_expense": round(total_mdr_fee, 2),
             "total_gst_itc": round(total_gst_itc, 2),
             "net_payout_pct": net_payout_pct,
@@ -143,26 +158,27 @@ class SettlementUnpackerEngine:
         }
         ai_response = TaxOptimizerAI.generate_tax_and_executive_insights(unpacked_facts)
 
-        refunds_pct = round((total_orphan_refund_amount / gmv_safe) * 100, 2)
-
         return {
             "success": True,
             "contracted_sla": {
-                "mdr_percent": round(contracted_mdr * 100, 2),
-                "gst_percent": round(gst_rate * 100, 2),
+                "mdr_percent": contracted_mdr_pct,
+                "gst_percent": contracted_gst_pct,
                 "sla_text": GatewayConfig.get_sla_text()
             },
             "unpacked_pillars": {
                 "total_gmv": round(total_gmv, 2),
                 "total_mdr_expense": round(total_mdr_fee, 2),
                 "total_gst_itc": round(total_gst_itc, 2),
+                "gross_bank_payout": round(pos_net_payout, 2),
                 "net_bank_payout": round(total_net_payout, 2),
                 "total_customer_refunds": round(total_orphan_refund_amount, 2),
+                "total_non_recoverable_refund_loss": round(total_non_recoverable_refund_loss, 2),
                 "proportions": {
                     "net_payout_percent": net_payout_pct,
                     "mdr_expense_percent": mdr_fee_pct,
                     "gst_itc_percent": gst_itc_pct,
-                    "refunds_percent": refunds_pct
+                    "refunds_percent": refunds_pct,
+                    "non_recoverable_loss_percent": non_recoverable_loss_pct
                 }
             },
             "categorized_buckets": {

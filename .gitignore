@@ -1,21 +1,64 @@
-# Virtual Environment
+# =====================================================================
+# AutoReconAI - Comprehensive Project .gitignore
+# =====================================================================
+
+# --- Python Virtual Environments ---
 venv/
 .venv/
 env/
+ENV/
+env.bak/
+venv.bak/
 
-# Python Cache & Bytecode
+# --- Python Compiled Bytecode & Caches ---
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .pytest_cache/
+.coverage
+htmlcov/
+.nox/
+.tox/
 
-# Environment Variables & Secrets
+# --- Secrets, API Keys & Environment Variables ---
 .env
+.env.local
+.env.development
+.env.production
+.env.test
+*.pem
+*.key
 
-# Generated Output & Temporary Files
-data_generator/output/
+# --- Local Databases & Runtime Storage ---
+*.db
+*.sqlite3
+*.sqlite
+store.db
+instance/
+
+# --- Temporary File Uploads & Runtime Logs ---
 temp_uploads/
+uploads/
+scratch/
 *.log
+*.tmp
+*.bak
+
+# --- Generated Simulation Outputs (Optional Runtime Artifacts) ---
+generated_data/
+
+# --- IDEs & Code Editors ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+
+# --- Operating System Junk Files ---
 .DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
 

@@ -15,10 +15,10 @@ import requests
 import traceback
 import dotenv
 
-dotenv.load_dotenv()
+from config_loader import ModelConfig
 
 API_KEY = os.getenv("GEMINI_API_KEY")
-CANDIDATE_MODELS = ["gemini-3-flash-preview", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview", "gemini-flash-latest"]
+CANDIDATE_MODELS = ModelConfig.get_model_fallback_chain()
 
 # Layer 1: Deterministic Pattern Whitelist / Blocklist
 DETERMINISTIC_INJECTION_PATTERNS = [
