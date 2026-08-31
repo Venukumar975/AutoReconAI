@@ -84,7 +84,7 @@ class ReconToolbox:
                 expected_tax = expected_fee * gst_rate
                 overcharge_delta = (fee + tax) - (expected_fee + expected_tax)
                 if overcharge_delta > 0:
-                    total_overcharge_cash += overcharge_delta
+                    total_overcharge_cash += round(overcharge_delta, 2)
 
             # 3. Bank Chargeback Dispute Holds
             if status_val == "dispute_hold" or txn_type == "dispute_hold" or pid.startswith("disp_"):
@@ -525,7 +525,7 @@ class ReconToolbox:
                 expected_tax = expected_fee * gst_rate
                 overcharge = (fee + tax) - (expected_fee + expected_tax)
                 if overcharge > 0:
-                    total_overcharge += overcharge
+                    total_overcharge += round(overcharge, 2)
                     overcharged_list.append({
                         "date": date_str,
                         "order_id": oid,
@@ -803,9 +803,18 @@ class ReconToolbox:
         captured_settlements = [s for s in settlements if s.get("status") == "captured" and float(s.get("net_credit", 0.0)) > 0]
 
         total_gmv = sum(float(s.get("amount", 0.0)) for s in captured_settlements)
-        total_mdr = sum(float(s.get("fee", 0.0)) for s in captured_settlements)
-        total_gst = sum(float(s.get("tax", 0.0)) for s in captured_settlements)
+        billed_mdr = sum(float(s.get("fee", 0.0)) for s in captured_settlements)
+        billed_gst = sum(float(s.get("tax", 0.0)) for s in captured_settlements)
         total_tds = sum(float(s.get("tds", 0.0)) for s in captured_settlements)
+
+        # Self-Questioning: Compare raw billed figures against contracted SLA terms
+        contracted_mdr_fee = round(total_gmv * contracted_mdr, 2)
+        contracted_gst_itc = round(contracted_mdr_fee * gst_rate, 2)
+
+        mdr_overcharge = round(billed_mdr - contracted_mdr_fee, 2)
+        gst_overcharge = round(billed_gst - contracted_gst_itc, 2)
+        total_overcharge = round(mdr_overcharge + gst_overcharge, 2)
+        has_overcharge = total_overcharge > 0.00
 
         # Table 1: Section 194-O TDS Breakdown
         tds_table_lines = [
@@ -819,33 +828,50 @@ class ReconToolbox:
             f"| **Total Section 194-O TDS Withheld** | **₹{total_tds:,.2f}** | **1.00% Withheld by Gateway** | **TDS Receivable (Form 26AS Asset)** |"
         ]
 
-        # Table 2: GST Input Tax Credit (ITC) on Payment Gateway Processing Fees
-        itc_table_lines = [
-            "### 2. GST Input Tax Credit (ITC) Statement (Indirect Tax on Gateway MDR)",
-            "| Parameter | Total Amount (INR) | GST Return Form | Claimable Input Tax Credit (ITC) |",
-            "| :--- | :--- | :--- | :--- |",
-            f"| Total Payment Gateway MDR Fees | ₹{total_mdr:,.2f} | Monthly Gateway Tax Invoice | Commercial Operating Expense |",
-            f"| **18% Input GST Paid on MDR** | **₹{total_gst:,.2f}** | **GSTR-2B Auto-Drafted / Table 4(A)(5) GSTR-3B** | **100% Eligible Input Tax Credit (₹{total_gst:,.2f})** |"
-        ]
+        # Table 2: GST Input Tax Credit (ITC) Statement & SLA Variance
+        if has_overcharge:
+            contracted_sla_label = f"Contracted SLA Baseline ({contracted_mdr*100:.2f}% MDR + {gst_rate*100:.2f}% GST)"
+            itc_table_lines = [
+                "### 2. GST Input Tax Credit (ITC) Statement & SLA Variance",
+                f"| Parameter | Invoiced on Gateway Invoices (INR) | {contracted_sla_label} | Overcharged Variance (Disputable) | GST Return Form & Action |",
+                "| :--- | :--- | :--- | :--- | :--- |",
+                f"| Total Payment Gateway MDR Fees | ₹{billed_mdr:,.2f} | ₹{contracted_mdr_fee:,.2f} | **+₹{mdr_overcharge:,.2f}** | Commercial Operating Expense |",
+                f"| **18% Input GST Paid on MDR** | **₹{billed_gst:,.2f}** | **₹{contracted_gst_itc:,.2f}** | **+₹{gst_overcharge:,.2f}** | **Claim ₹{billed_gst:,.2f} in GSTR-3B Table 4(A)(5); reverse ₹{gst_overcharge:,.2f} in Table 4(B) upon dispute refund** |",
+                f"| **TOTAL GATEWAY DEDUCTIONS** | **₹{billed_mdr+billed_gst:,.2f}** | **₹{contracted_mdr_fee+contracted_gst_itc:,.2f}** | **+₹{total_overcharge:,.2f}** | **Total SLA Overcharge Breach (Recoverable)** |"
+            ]
+            compliance_guidance = (
+                f"1. Section 194-O TDS: {f'INR {total_tds:,.2f} withheld by Razorpay is credited against your PAN in Form 26AS as Advance Income Tax.' if (is_tds_active and total_tds > 0) else 'Section 194-O TDS withholding was ₹0.00 for this settlement batch (no advance tax withheld by gateway).'}\n"
+                f"2. GST Input Tax Credit & SLA Overcharge Notice: Razorpay invoiced ₹{billed_mdr:,.2f} in MDR and ₹{billed_gst:,.2f} in GST. However, based on your contracted SLA ({contracted_mdr*100:.2f}% MDR + {gst_rate*100:.2f}% GST), your lawful MDR is ₹{contracted_mdr_fee:,.2f} and GST is ₹{contracted_gst_itc:,.2f}. "
+                f"The ₹{total_overcharge:,.2f} difference (₹{mdr_overcharge:,.2f} excess MDR + ₹{gst_overcharge:,.2f} excess GST) represents an SLA rate breach. For current monthly GSTR-3B filing, claim the invoiced ₹{billed_gst:,.2f} under Table 4(A)(5), but note that ₹{gst_overcharge:,.2f} must be reversed in Table 4(B) once Razorpay credits back your dispute claim."
+            )
+        else:
+            itc_table_lines = [
+                "### 2. GST Input Tax Credit (ITC) Statement (Indirect Tax on Gateway MDR)",
+                "| Parameter | Total Amount (INR) | GST Return Form | Claimable Input Tax Credit (ITC) |",
+                "| :--- | :--- | :--- | :--- |",
+                f"| Total Payment Gateway MDR Fees | ₹{billed_mdr:,.2f} | Monthly Gateway Tax Invoice | Commercial Operating Expense |",
+                f"| **18% Input GST Paid on MDR** | **₹{billed_gst:,.2f}** | **GSTR-2B Auto-Drafted / Table 4(A)(5) GSTR-3B** | **100% Eligible Input Tax Credit (₹{billed_gst:,.2f})** |"
+            ]
+            compliance_guidance = (
+                f"1. Section 194-O TDS: {f'INR {total_tds:,.2f} withheld by Razorpay is credited against your PAN in Form 26AS as Advance Income Tax.' if (is_tds_active and total_tds > 0) else 'Section 194-O TDS withholding was ₹0.00 for this settlement batch (no advance tax withheld by gateway).'}\n"
+                f"2. GST Input Tax Credit: INR {billed_gst:,.2f} GST paid on Razorpay MDR is 100% claimable as Input Tax Credit (ITC) in Table 4(A)(5) of monthly GSTR-3B to offset grocery sales tax liability."
+            )
 
         combined_tables_md = "\n".join(tds_table_lines) + "\n\n" + "\n".join(itc_table_lines)
-
-        tds_statement = (
-            f"INR {total_tds:,.2f} withheld by Razorpay is credited against your PAN in Form 26AS as Advance Income Tax."
-            if is_tds_active and total_tds > 0
-            else "Section 194-O TDS withholding was ₹0.00 for this settlement batch (no advance tax withheld by gateway)."
-        )
 
         return {
             "is_tds_applicable": is_tds_active,
             "merchant_tax_profile": tax_profile,
             "total_gmv_inr": round(total_gmv, 2),
-            "total_mdr_fees_inr": round(total_mdr, 2),
-            "total_input_gst_itc_inr": round(total_gst, 2),
+            "total_mdr_fees_inr": round(billed_mdr, 2),
+            "total_input_gst_itc_inr": round(billed_gst, 2),
+            "contracted_mdr_fee_inr": round(contracted_mdr_fee, 2),
+            "contracted_gst_itc_inr": round(contracted_gst_itc, 2),
+            "mdr_overcharge_inr": round(mdr_overcharge, 2),
+            "gst_overcharge_inr": round(gst_overcharge, 2),
+            "total_sla_overcharge_inr": round(total_overcharge, 2),
+            "has_overcharge": has_overcharge,
             "total_section_194o_tds_inr": round(total_tds, 2),
             "default_table_md": combined_tables_md,
-            "accounting_guidance": (
-                f"1. Section 194-O TDS: {tds_statement} "
-                f"2. GST Input Tax Credit: INR {total_gst:,.2f} GST paid on Razorpay MDR is 100% claimable as Input Tax Credit (ITC) in Table 4(A)(5) of monthly GSTR-3B to offset grocery sales tax liability."
-            )
+            "accounting_guidance": compliance_guidance
         }

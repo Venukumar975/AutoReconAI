@@ -18,17 +18,41 @@ const VisualLinks = (() => {
       document.getElementById('kpi-gst').innerText = `₹${data.summary.total_gst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
       document.getElementById('kpi-match-rate').innerText = data.summary.match_rate;
 
+      const expectedMdr = (data.summary.total_gmv || 0) * ((data.summary.contracted_mdr_percent || 2.1) / 100);
+      const hasOvercharge = (data.summary.total_fees || 0) > (expectedMdr + 0.5);
+
+      const feesEl = document.getElementById('kpi-fees');
+      const gstEl = document.getElementById('kpi-gst');
+      const mdrCard = feesEl ? feesEl.closest('.kpi-card') : null;
+      const gstCard = gstEl ? gstEl.closest('.kpi-card') : null;
+
       if (data.summary.contracted_mdr_percent) {
         const mdrLabel = document.getElementById('kpi-mdr-label');
-        if (mdrLabel) mdrLabel.innerText = `MDR Fees (${data.summary.contracted_mdr_percent}%)`;
+        if (mdrLabel) {
+          mdrLabel.innerHTML = hasOvercharge
+            ? `MDR Fees (${data.summary.contracted_mdr_percent}%) <span style="color:#b45309; font-size:10px; font-weight:700; background:#fef3c7; padding:2px 6px; border-radius:4px; margin-left:4px;">⚠️ Overcharged</span>`
+            : `MDR Fees (${data.summary.contracted_mdr_percent}%)`;
+        }
         const thMdr = document.getElementById('th-mdr-label');
         if (thMdr) thMdr.innerText = `MDR (${data.summary.contracted_mdr_percent}%)`;
       }
       if (data.summary.gst_rate_percent) {
         const gstLabel = document.getElementById('kpi-gst-label');
-        if (gstLabel) gstLabel.innerText = `GST on MDR (${data.summary.gst_rate_percent}%)`;
+        if (gstLabel) {
+          gstLabel.innerHTML = hasOvercharge
+            ? `GST on MDR (${data.summary.gst_rate_percent}%) <span style="color:#b45309; font-size:10px; font-weight:700; background:#fef3c7; padding:2px 6px; border-radius:4px; margin-left:4px;">⚠️ Overcharged</span>`
+            : `GST on MDR (${data.summary.gst_rate_percent}%)`;
+        }
         const thGst = document.getElementById('th-gst-label');
         if (thGst) thGst.innerText = `GST (${data.summary.gst_rate_percent}%)`;
+      }
+
+      if (hasOvercharge) {
+        if (mdrCard) mdrCard.style.borderColor = "#f59e0b";
+        if (gstCard) gstCard.style.borderColor = "#f59e0b";
+      } else {
+        if (mdrCard) mdrCard.style.borderColor = "";
+        if (gstCard) gstCard.style.borderColor = "";
       }
     }
 

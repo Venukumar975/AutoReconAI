@@ -91,7 +91,7 @@
     },
     {
       "function_name": "audit_tax_and_tds_deductions",
-      "description": "Performs a complete statutory dual-mode tax audit covering: (1) Direct Tax: Section 194-O Income Tax TDS withholding (1.00% withheld on gross sales, verified against Merchant PAN in Form 26AS), and (2) Indirect Tax: 18% GST Input Tax Credit (ITC) on gateway MDR fees, claimable under Table 4(A)(5) of monthly GSTR-3B.",
+      "description": "Performs a complete statutory dual-mode tax audit covering: (1) Direct Tax: Section 194-O Income Tax TDS withholding (1.00% on gross sales, Form 26AS), and (2) Indirect Tax: 18% GST Input Tax Credit (ITC, Table 4(A)(5) GSTR-3B). Automatically self-checks invoiced MDR fees against contracted SLA terms (from config.ini) to detect if invoiced GST ITC contains SLA overcharges, presenting a 3-way Billed vs Contracted vs Overcharge breakdown.",
       "required_data_sources": ["razorpay_settlement_recon.csv", "config.ini (Tax Profile)"],
       "inputs": {},
       "output_fields": {

@@ -335,9 +335,8 @@ def generate_linked_grid():
         total_fees = sum(float(s.get("fee", 0.0)) for s in positive_settlements)
         total_gst = sum(float(s.get("tax", 0.0)) for s in positive_settlements)
         pos_net_payout = sum(float(s.get("net_credit", 0.0)) for s in positive_settlements)
-        total_customer_refunds = sum(abs(float(s.get("amount", 0.0))) if float(s.get("amount", 0.0)) != 0 else abs(float(s.get("net_credit", 0.0))) for s in refund_settlements)
-
-        total_bank_deposited = pos_net_payout - total_customer_refunds
+        total_bank_credits = sum(float(b.get("credit", 0.0)) for b in bank_txns if b.get("is_gateway_credit"))
+        total_bank_deposited = total_bank_credits if total_bank_credits > 0 else round(pos_net_payout - sum(abs(float(s.get("net_credit", 0.0))) for s in refund_settlements), 2)
         matched_orders_count = 0
         total_orders_count = 0
         unique_mismatched_oids = set()

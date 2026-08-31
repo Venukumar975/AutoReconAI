@@ -63,10 +63,12 @@ class SettlementUnpackerEngine:
         total_gst_itc = sum(float(s.get("tax", 0.0)) for s in positive_settlements)
         pos_net_payout = sum(float(s.get("net_credit", 0.0)) for s in positive_settlements)
 
+        total_bank_credits = sum(float(b.get("credit", 0.0)) for b in bank_txns if b.get("is_gateway_credit"))
+        total_deductions = sum(abs(float(s.get("net_credit", 0.0))) for s in refund_settlements)
         total_orphan_refund_amount = sum(abs(float(s.get("amount", 0.0))) if float(s.get("amount", 0.0)) != 0 else abs(float(s.get("net_credit", 0.0))) for s in refund_settlements)
         total_non_recoverable_refund_loss = sum(float(s.get("fee", 0.0)) + float(s.get("tax", 0.0)) for s in refund_settlements)
 
-        total_net_payout = pos_net_payout - total_orphan_refund_amount
+        total_net_payout = total_bank_credits if total_bank_credits > 0 else round(pos_net_payout - total_deductions, 2)
 
         for s in settlements:
             oid = s.get("order_id", "")
