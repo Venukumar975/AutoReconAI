@@ -185,6 +185,26 @@
         "total_amount_including_tax_inr": "Total base + GST amount",
         "statutory_note": "CGST Act statutory reference"
       }
+    },
+    {
+      "function_name": "search_statutory_tax_web",
+      "description": "Searches official government tax portals (cbic-gst.gov.in, incometaxindia.gov.in, rbi.org.in, razorpay.com/docs) for recent circulars, Section 194-O TDS rules, and 18% GST regulations when the user asks for 'latest', 'current', 'recent updates', or official regulatory comparisons.",
+      "required_data_sources": ["Internet / Official Government Portals"],
+      "inputs": {
+        "query": {
+          "type": "string",
+          "description": "The regulatory search query (e.g. 'latest Section 194-O TDS rate for e-commerce', 'GST on payment gateway charges')"
+        },
+        "domain": {
+          "type": "string",
+          "description": "Target domain: 'incometax', 'gst', 'rbi', or 'razorpay'"
+        }
+      },
+      "output_fields": {
+        "status": "LIVE_WEB_SEARCH_SUCCESS or FALLBACK_TO_PRETRAINED_KNOWLEDGE",
+        "retrieved_statutory_updates": "Snippet excerpts from official portals if available",
+        "source_url": "Official portal URL"
+      }
     }
   ]
 }

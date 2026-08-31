@@ -12,11 +12,12 @@ import os
 import configparser
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-# Locate config.ini in 'Data Simulator & Generator' or fallback to root
+# Locate master config.ini at root level (sibling to ai_models.ini)
 CONFIG_PATHS = [
-    os.path.join(CURRENT_DIR, "..", "..", "Data Simulator & Generator", "config.ini"),
+    os.path.join(CURRENT_DIR, "..", "..", "config.ini"),
     os.path.join(CURRENT_DIR, "..", "config.ini"),
-    os.path.join(CURRENT_DIR, "config.ini")
+    os.path.join(CURRENT_DIR, "config.ini"),
+    os.path.join(CURRENT_DIR, "..", "..", "Data Simulator & Generator", "config.ini")
 ]
 
 

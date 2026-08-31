@@ -875,3 +875,57 @@ class ReconToolbox:
             "default_table_md": combined_tables_md,
             "accounting_guidance": compliance_guidance
         }
+
+    @staticmethod
+    def search_statutory_tax_web(query: str, domain: str = "incometax") -> dict:
+        """
+        Searches official government tax portals (cbic-gst.gov.in, incometaxindia.gov.in, rbi.org.in, razorpay.com/docs)
+        for recent statutory circulars, GST/TDS rates, and payment gateway compliance updates.
+        If the network times out or is unreachable, signals the reasoner to answer using its rich pre-trained knowledge base.
+        """
+        import urllib.request
+        import urllib.parse
+
+        trusted_domains = {
+            "incometax": "incometaxindia.gov.in",
+            "gst": "cbic-gst.gov.in",
+            "rbi": "rbi.org.in",
+            "razorpay": "razorpay.com/docs"
+        }
+        target_domain = trusted_domains.get(str(domain).lower().strip(), str(domain).strip() or "incometaxindia.gov.in")
+        clean_query = urllib.parse.quote(str(query).strip())
+
+        try:
+            search_url = f"https://html.duckduckgo.com/html/?q={clean_query}+site:{target_domain}"
+            req = urllib.request.Request(
+                search_url,
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+            )
+            with urllib.request.urlopen(req, timeout=5) as response:
+                html_content = response.read().decode("utf-8", errors="ignore")
+                # Extract clean snippet text if available
+                snippets = re.findall(r'<a class="result__snippet[^>]*>(.*?)</a>', html_content, re.DOTALL)
+                clean_snippets = [re.sub(r'<[^>]+>', '', s).strip() for s in snippets[:3] if s.strip()]
+                
+                if clean_snippets:
+                    return {
+                        "status": "LIVE_WEB_SEARCH_SUCCESS",
+                        "searched_domain": target_domain,
+                        "query": query,
+                        "retrieved_statutory_updates": " | ".join(clean_snippets),
+                        "source_url": f"https://{target_domain}"
+                    }
+                else:
+                    return {
+                        "status": "FALLBACK_TO_PRETRAINED_KNOWLEDGE",
+                        "searched_domain": target_domain,
+                        "query": query,
+                        "message": f"Official portal {target_domain} did not return immediate live snippets. Relying on pre-trained statutory knowledge."
+                    }
+        except Exception as e:
+            return {
+                "status": "FALLBACK_TO_PRETRAINED_KNOWLEDGE",
+                "searched_domain": target_domain,
+                "query": query,
+                "reason": f"Web connection unavailable/timed out ({str(e)}). Relying on comprehensive pre-trained statutory knowledge base."
+            }

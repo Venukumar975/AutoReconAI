@@ -25,10 +25,13 @@ CANDIDATE_MODELS = ModelConfig.get_model_fallback_chain()
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 TOOLS_DESC_PATH = os.path.join(CURRENT_DIR, "tools_desc.json")
 TOOLS_REGISTRY_STR = ""
+TOOLS_REGISTRY_JSON = {}
+
 if os.path.exists(TOOLS_DESC_PATH):
     try:
         with open(TOOLS_DESC_PATH, "r", encoding="utf-8") as f:
             TOOLS_REGISTRY_STR = f.read()
+            TOOLS_REGISTRY_JSON = json.loads(TOOLS_REGISTRY_STR)
     except Exception:
         TOOLS_REGISTRY_STR = ""
 
@@ -56,105 +59,55 @@ YOUR MISSION:
 3. You can call multiple tools in sequence if the query requires joining or cross-verifying data (e.g. chargeback holds + customer details + overcharge calculations).
 """
 
-TOOL_DECLARATIONS = [
-    {
-        "function_declarations": [
-            {
-                "name": "get_reconciliation_overview",
-                "description": "Calculates high-level 3-way reconciliation health metrics, GMV, total fees, GST, TDS, bank deposits, match rate (%), and Master 5-Way Mismatch Summary Table.",
-                "parameters": {"type": "OBJECT", "properties": {}}
-            },
-            {
-                "name": "calculate_fee_discrepancies",
-                "description": "Audits all captured settlement transactions against the active contracted SLA terms (from config.ini). Identifies orders billed above contracted rate.",
-                "parameters": {"type": "OBJECT", "properties": {}}
-            },
-            {
-                "name": "generate_dispute_ticket",
-                "description": "Generates a formal, ready-to-send Razorpay Merchant Dispute Claim Ticket email payload for overbilled transactions.",
-                "parameters": {
-                    "type": "OBJECT",
-                    "properties": {
-                        "order_ids": {"type": "ARRAY", "items": {"type": "STRING"}, "description": "Optional list of specific Order IDs to include."},
-                        "reason": {"type": "STRING", "description": "Dispute reason text."}
-                    }
-                }
-            },
-            {
-                "name": "audit_chargeback_holds",
-                "description": "Audits customer bank chargeback dispute holds (disp_xxxx), disputed GMV in escrow, ₹500 dispute fee, ₹90 GST penalty (-₹590 debit), and 7-day Proof of Delivery defense actions to recover held funds.",
-                "parameters": {"type": "OBJECT", "properties": {}}
-            },
-            {
-                "name": "calculate_refund_fee_leakage",
-                "description": "Audits voluntary customer refunds ONLY. Distinguishes between (1) Orphan Refunds (ORD_PRIOR_) and (2) Same-Month Customer Refunds (ORD_xxxx). Calculates non-reversed gateway MDR + 18% GST fee leakage (which is permanently non-refundable). Strictly excludes bank dispute holds.",
-                "parameters": {"type": "OBJECT", "properties": {}}
-            },
-            {
-                "name": "audit_tax_and_tds_deductions",
-                "description": "Performs statutory tax audit: (1) Section 194-O Income Tax TDS withholding (1.00% on gross sales, Form 26AS), and (2) 18% GST Input Tax Credit (ITC, Table 4(A)(5) GSTR-3B).",
-                "parameters": {"type": "OBJECT", "properties": {}}
-            },
-            {
-                "name": "inspect_order_lifecycle",
-                "description": "Deep 3-way forensic lifecycle trace of a specific Order ID across Store Orders, Settlements, and Bank deposit ledgers.",
-                "parameters": {
-                    "type": "OBJECT",
-                    "properties": {
-                        "order_id": {"type": "STRING", "description": "The exact Order ID to trace (e.g. 'ORD_1016')."}
-                    },
-                    "required": ["order_id"]
-                }
-            },
-            {
-                "name": "list_mismatches",
-                "description": "Lists anomalous or mismatched orders across the 3-way reconciliation pipeline filtered by category: all, fee_overcharge, dropped_webhook, orphan_refund, missing_bank_credit.",
-                "parameters": {
-                    "type": "OBJECT",
-                    "properties": {
-                        "category": {"type": "STRING", "description": "Filter by anomaly category."}
-                    }
-                }
-            },
-            {
-                "name": "query_gateway_payments_db",
-                "description": "Performs a read-only SQL query against Razorpay Payment Gateway core database (payments table in store.db).",
-                "parameters": {
-                    "type": "OBJECT",
-                    "properties": {
-                        "filter_key": {"type": "STRING", "description": "Column: order_id, payment_id, status, settlement_utr."},
-                        "filter_value": {"type": "STRING", "description": "Value to match."}
-                    }
-                }
-            },
-            {
-                "name": "calculate_tax_breakdown",
-                "description": "Calculates standard Indian GST (18%) and total amount on a given base amount.",
-                "parameters": {
-                    "type": "OBJECT",
-                    "properties": {
-                        "base_amount": {"type": "NUMBER", "description": "Base MDR fee or transaction amount in INR."},
-                        "tax_rate_pct": {"type": "NUMBER", "description": "GST tax rate percentage (default 18.0)."}
-                    },
-                    "required": ["base_amount"]
-                }
-            }
-        ]
-    }
-]
+# Single Source of Truth: Build TOOL_DECLARATIONS & TOOL_DATA_SOURCES directly from tools_desc.json
+function_declarations = []
+TOOL_DATA_SOURCES = {}
 
-TOOL_DATA_SOURCES = {
-    "get_reconciliation_overview": ["Store Orders CSV", "Settlement Payouts CSV", "Bank Statement PDF/XLSX"],
-    "calculate_fee_discrepancies": ["Settlement Payouts CSV", "Store Orders CSV"],
-    "generate_dispute_ticket": ["Settlement Payouts CSV"],
-    "audit_chargeback_holds": ["Settlement Payouts CSV", "Store Orders CSV"],
-    "calculate_refund_fee_leakage": ["Settlement Payouts CSV", "Store Orders CSV"],
-    "audit_tax_and_tds_deductions": ["Settlement Payouts CSV", "Merchant Tax Profile"],
-    "inspect_order_lifecycle": ["Store Orders CSV", "Settlement Payouts CSV", "Bank Statement PDF/XLSX"],
-    "list_mismatches": ["Store Orders CSV", "Settlement Payouts CSV", "Bank Statement PDF/XLSX"],
-    "query_gateway_payments_db": ["store.db (payments table)"],
-    "calculate_tax_breakdown": ["Statutory GST Formula"]
-}
+for tool_meta in TOOLS_REGISTRY_JSON.get("tools", []):
+    fn_name = tool_meta.get("function_name")
+    fn_desc = tool_meta.get("description", "")
+    raw_inputs = tool_meta.get("inputs", {})
+    data_sources = tool_meta.get("required_data_sources", [])
+
+    TOOL_DATA_SOURCES[fn_name] = data_sources
+
+    properties = {}
+    required_fields = []
+    for param_name, param_info in raw_inputs.items():
+        p_type = str(param_info.get("type", "string")).upper()
+        if "ARRAY" in p_type:
+            properties[param_name] = {
+                "type": "ARRAY",
+                "items": {"type": "STRING"},
+                "description": param_info.get("description", "")
+            }
+        elif "NUMBER" in p_type or "FLOAT" in p_type:
+            properties[param_name] = {
+                "type": "NUMBER",
+                "description": param_info.get("description", "")
+            }
+        else:
+            properties[param_name] = {
+                "type": "STRING",
+                "description": param_info.get("description", "")
+            }
+        if param_info.get("required", False) or param_name in ["order_id", "base_amount", "query"]:
+            required_fields.append(param_name)
+
+    decl = {
+        "name": fn_name,
+        "description": fn_desc,
+        "parameters": {
+            "type": "OBJECT",
+            "properties": properties
+        }
+    }
+    if required_fields:
+        decl["parameters"]["required"] = required_fields
+
+    function_declarations.append(decl)
+
+TOOL_DECLARATIONS = [{"function_declarations": function_declarations}]
 
 
 class DomainReasonerAI:
@@ -309,6 +262,11 @@ class DomainReasonerAI:
             return ReconToolbox.calculate_tax_breakdown(
                 base_amount=fn_args.get("base_amount", 0.0),
                 tax_rate_pct=fn_args.get("tax_rate_pct", 18.0)
+            )
+        elif fn_name == "search_statutory_tax_web":
+            return ReconToolbox.search_statutory_tax_web(
+                query=fn_args.get("query", ""),
+                domain=fn_args.get("domain", "incometax")
             )
         return {"error": f"Unknown tool '{fn_name}'"}
 

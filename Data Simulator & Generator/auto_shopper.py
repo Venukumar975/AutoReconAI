@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(CURRENT_DIR)
-CONFIG_PATH = os.path.join(CURRENT_DIR, "config.ini")
+CONFIG_PATH = os.path.join(ROOT_DIR, "config.ini") if os.path.exists(os.path.join(ROOT_DIR, "config.ini")) else os.path.join(CURRENT_DIR, "config.ini")
 PRODUCTS_JSON_PATH = os.path.join(ROOT_DIR, "products.json")
 
 # 55 Realistic Indian Customer Profiles

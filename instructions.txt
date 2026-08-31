@@ -1,8 +1,101 @@
-1.  Before Running the Simulated Tests to create users data , make sure you Initialised the database tables
-    a . To create database and tables in it ( cart , products , orders , payments ) 
-          => python database/init_db.py
-    b . To clean the databaese or to delete tables from database
-          => python database/clean_db.py
+========================================================================================
+   AUTORECONAI & FRESHMART STORE - QUICK SETUP & TIMELINE WORKFLOW GUIDE
+========================================================================================
 
-2.  Run the complete 55-order visual pipeline:
-        .\venv\Scripts\ python "Data Simulator & Generator/run_simulation_pipeline.py"
+----------------------------------------------------------------------------------------
+🔑 1. PREREQUISITES & INITIAL SETUP (FIRST TIME ONLY)
+----------------------------------------------------------------------------------------
+
+1. Create `.env` file in the root folder:
+   GEMINI_API_KEY=your_gemini_api_key_here
+
+2. Create virtual environment:
+   python -m venv venv
+
+3. Activate virtual environment:
+   • VS Code Terminal / Windows PowerShell:
+     .\venv\Scripts\Activate.ps1
+     (If restricted, run: Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass)
+
+   • Windows Command Prompt (CMD):
+     venv\Scripts\activate.bat
+
+   • macOS / Linux Terminal:
+     source venv/bin/activate
+
+4. Install dependencies:
+   • Windows        :       .\venv\Scripts\pip install -r requirements.txt
+   • macOS / Linux  :       ./venv/bin/pip install -r requirements.txt
+
+----------------------------------------------------------------------------------------
+🚀 2. STEP-BY-STEP TIMELINE WORKFLOW
+----------------------------------------------------------------------------------------
+
+[TERMINAL 1] Start FreshMart Storefront Server (Port 5050)
+Serves the customer grocery website & manages store orders database. (Independent of config.ini)
+• Windows:       .\venv\Scripts\python backend.py
+• macOS / Linux: ./venv/bin/python backend.py
+• Access: http://127.0.0.1:5050
+
+[CONFIGURATION] Configure Settings in Master `config.ini` (Root Folder)
+Customize your simulation & SLA parameters before starting the gateway & simulation:
+• `simulation_mode`:
+  - `super_fast` (Recommended): Pure HTTP requests, 50-500+ orders in 2 seconds.
+  - `fast`: Visual Chromium browser with fast UI clicks.
+  - `normal`: Visual browser with human-like delays.
+• `razorpay_transactions_count`: Total orders to generate (e.g., 50).
+• `bank_pdf_format`: Bank statement style (`UNION_BANK` or `SBI`).
+• `mdr_rate_percent` & `gst_rate_percent`: Contracted SLA rates (e.g., 2.0% MDR + 18% GST).
+• `is_tds_applicable` & `tds_rate_percent`: Section 194-O TDS withholding (e.g., 1.0%).
+• Edge cases: Dropped webhooks, fee overcharges, orphan refunds, chargeback holds.
+
+[TERMINAL 2] Start Razorpay Suite & AutoReconAI (Ports 5051 & 5055)
+Reads `config.ini` and launches Razorpay Gateway (5051) + AutoReconAI Dashboard (5055).
+• Windows:       .\venv\Scripts\python run_razorpay_suite.py
+• macOS / Linux: ./venv/bin/python run_razorpay_suite.py
+• Access: http://127.0.0.1:5055
+
+[TERMINAL 3] Run Data Simulation Pipeline
+Reads `config.ini`, simulates customer orders, injects edge cases, and exports ledgers.
+• Windows:       .\venv\Scripts\python "Data Simulator & Generator/run_simulation_pipeline.py"
+• macOS / Linux: ./venv/bin/python "Data Simulator & Generator/run_simulation_pipeline.py"
+• Outputs in `generated_data/`:
+  1. `store_orders.csv`
+  2. `razorpay_settlement_recon.csv`
+  3. `bank_statement_union_bank.pdf` / `.xlsx`
+
+[WEB BROWSER] 3-Way Reconciliation & AI Copilot
+1. Open: http://127.0.0.1:5055
+2. Upload the 3 generated files from `generated_data/` and confirm column mapping.
+3. View the 3-Way Linked Grid, KPI Cards, and Mismatch Badges.
+4. Chat with the AI Copilot (bottom-right drawer) for instant audits & dispute tickets.
+
+----------------------------------------------------------------------------------------
+🗄️ 3. DATABASE & TABLES VIEWER (`store.db`)
+----------------------------------------------------------------------------------------
+Table Roles & Contextual Access Scopes:
+
+• MERCHANT SIDE (FreshMart Storefront - Port 5050):
+  1. `products` : Grocery catalog items & prices. Managed by store owner.
+  2. `cart`     : Line-item product breakdowns per customer order.
+  3. `orders`   : Store sale bills (`order_id`, customer, amount, status `FULFILLED`/`PENDING`).
+  *(Note: The merchant storefront does NOT have direct access to internal gateway fees or UTRs).*
+
+• GATEWAY SIDE (Razorpay Engine - Port 5051):
+  4. `payments` : Internal gateway processing ledger (`payment_id`, MDR `fee`, GST `tax`, `tds`,
+                  `net_credit`, `settlement_utr`). Razorpay uses this table to compile the
+                  monthly settlement payout CSV (`razorpay_settlement_recon.csv`).
+
+Viewing & Managing Tables:
+• View via Interactive Terminal Console (ASCII Grid):
+  - Windows:       .\venv\Scripts\python database/view.py --console
+  - macOS / Linux: ./venv/bin/python database/view.py --console
+
+• View via Desktop Popup GUI (Interactive Spreadsheet Window):
+  - Windows:       .\venv\Scripts\python database/view.py --interface
+  - macOS / Linux: ./venv/bin/python database/view.py --interface
+
+• Re-seed / Clean Database Tables:
+  - Initialize & seed fresh catalog : .\venv\Scripts\python database/init_db.py
+  - Wipe / clean all tables         : .\venv\Scripts\python database/clean_db.py
+========================================================================================

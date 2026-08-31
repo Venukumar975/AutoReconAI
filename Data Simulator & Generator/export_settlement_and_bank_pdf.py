@@ -31,7 +31,7 @@ DB_PATH = os.path.join(ROOT_DIR, "store.db")
 OUTPUT_DIR = os.path.join(ROOT_DIR, "generated_data")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-CONFIG_PATH = os.path.join(CURRENT_DIR, "config.ini")
+CONFIG_PATH = os.path.join(ROOT_DIR, "config.ini") if os.path.exists(os.path.join(ROOT_DIR, "config.ini")) else os.path.join(CURRENT_DIR, "config.ini")
 NARRATIONS_PATH = os.path.join(CURRENT_DIR, "bank_narrations.json")
 
 ORDERS_CSV_PATH = os.path.join(OUTPUT_DIR, "store_orders.csv")
