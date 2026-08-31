@@ -68,21 +68,62 @@ class GatewayConfig:
         return f"{mdr_pct:.2f}% Domestic MDR + {gst_pct:.2f}% GST (Total Effective {eff_pct:.2f}%)"
 
     @staticmethod
+    def is_tds_applicable() -> bool:
+        """Returns True if Section 194-O TDS is active, False otherwise."""
+        config = load_config()
+        try:
+            val = config.get("MERCHANT_TAX_PROFILE", "is_tds_applicable", fallback="no").strip().lower()
+            return val in ["yes", "true", "1", "y"]
+        except Exception:
+            return False
+
+    @staticmethod
+    def get_tds_rate() -> float:
+        """Returns Section 194-O TDS rate as decimal (e.g. 0.01 for 1.0%)."""
+        config = load_config()
+        try:
+            percent = float(config.get("MERCHANT_TAX_PROFILE", "tds_rate_percent", fallback=1.0))
+            return percent / 100.0
+        except Exception:
+            return 0.01
+
+    @staticmethod
+    def get_merchant_tax_profile() -> dict:
+        """Returns statutory tax identifiers (GSTIN, PAN)."""
+        config = load_config()
+        try:
+            return {
+                "gstin": config.get("MERCHANT_TAX_PROFILE", "gstin", fallback="36AATUF1234F1ZV"),
+                "pan": config.get("MERCHANT_TAX_PROFILE", "pan", fallback="ABCDE1234F"),
+                "is_tds_applicable": GatewayConfig.is_tds_applicable(),
+                "tds_rate_percent": GatewayConfig.get_tds_rate() * 100.0
+            }
+        except Exception:
+            return {
+                "gstin": "36AATUF1234F1ZV",
+                "pan": "ABCDE1234F",
+                "is_tds_applicable": False,
+                "tds_rate_percent": 1.0
+            }
+
+    @staticmethod
     def get_edge_case_config() -> dict:
         config = load_config()
         try:
             return {
                 "enable_edge_cases": config.getboolean("EDGE_CASES", "enable_edge_cases", fallback=True),
-                "dropped_webhook_count": int(config.get("EDGE_CASES", "dropped_webhook_count", fallback=3)),
-                "fee_overcharge_count": int(config.get("EDGE_CASES", "fee_overcharge_count", fallback=3)),
-                "orphan_refund_count": int(config.get("EDGE_CASES", "orphan_refund_count", fallback=2))
+                "dropped_webhook_count": int(config.get("EDGE_CASES", "dropped_webhook_count", fallback=2)),
+                "fee_overcharge_count": int(config.get("EDGE_CASES", "fee_overcharge_count", fallback=2)),
+                "orphan_refund_count": int(config.get("EDGE_CASES", "orphan_refund_count", fallback=2)),
+                "chargeback_hold_count": int(config.get("EDGE_CASES", "chargeback_hold_count", fallback=1))
             }
         except Exception:
             return {
                 "enable_edge_cases": True,
-                "dropped_webhook_count": 3,
-                "fee_overcharge_count": 3,
-                "orphan_refund_count": 2
+                "dropped_webhook_count": 2,
+                "fee_overcharge_count": 2,
+                "orphan_refund_count": 2,
+                "chargeback_hold_count": 1
             }
 
 

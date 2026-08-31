@@ -94,7 +94,8 @@ def export_razorpay_settlement_csv():
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT p.payment_id, p.order_id, p.amount, p.fee, p.tax, p.net_credit, 
+        SELECT p.payment_id, p.order_id, p.amount, p.fee, p.tax, 
+               COALESCE(p.tds, 0.0) AS tds, p.net_credit, 
                p.settlement_utr, p.status, o.created_at
         FROM payments p
         LEFT JOIN orders o ON p.order_id = o.order_id
@@ -107,7 +108,7 @@ def export_razorpay_settlement_csv():
         print("[WARNING] No payment records found in store.db to export.")
         return []
 
-    # Build UTR date lookup for orphan refund fallbacks
+    # Build UTR date lookup for orphan refund & chargeback fallbacks
     utr_date_lookup = {}
     for r in rows:
         if r["created_at"] and r["settlement_utr"]:
@@ -118,6 +119,15 @@ def export_razorpay_settlement_csv():
         created_dt = r["created_at"] or utr_date_lookup.get(r["settlement_utr"], "2026-09-01 10:00:00")
         settlement_id = f"setl_S{created_dt[5:7]}{created_dt[8:10]}_{idx:03d}"
         
+        status_val = r["status"]
+        pid = str(r["payment_id"])
+        if status_val == "refunded" or pid.startswith("rfnd_"):
+            txn_type = "refund"
+        elif status_val == "dispute_hold" or pid.startswith("disp_"):
+            txn_type = "dispute_hold"
+        else:
+            txn_type = "payment"
+
         csv_data.append({
             "settlement_id": settlement_id,
             "settlement_utr": r["settlement_utr"],
@@ -126,9 +136,10 @@ def export_razorpay_settlement_csv():
             "amount": f"{r['amount']:.2f}",
             "fee": f"{r['fee']:.2f}",
             "tax": f"{r['tax']:.2f}",
+            "tds": f"{float(r['tds']):.2f}",
             "net_credit": f"{r['net_credit']:.2f}",
-            "type": "payment",
-            "status": r["status"],
+            "type": txn_type,
+            "status": status_val,
             "created_at": created_dt,
             "settled_at": created_dt
         })
@@ -136,7 +147,7 @@ def export_razorpay_settlement_csv():
     with open(SETTLEMENT_CSV_PATH, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=[
             "settlement_id", "settlement_utr", "payment_id", "order_id",
-            "amount", "fee", "tax", "net_credit", "type", "status",
+            "amount", "fee", "tax", "tds", "net_credit", "type", "status",
             "created_at", "settled_at"
         ])
         writer.writeheader()
@@ -149,6 +160,8 @@ def export_razorpay_settlement_csv():
 from edge_case_simulators.simulate_dropped_webhooks import apply_dropped_webhooks_simulation
 from edge_case_simulators.simulate_fee_overcharges import apply_fee_overcharges_simulation
 from edge_case_simulators.simulate_non_reversed_refunds import apply_non_reversed_refunds_simulation
+from edge_case_simulators.simulate_chargebacks import apply_chargebacks_simulation
+from edge_case_simulators.simulate_section_194o_tds import apply_section_194o_tds_simulation
 
 
 def apply_edge_case_mutations(config):
@@ -157,6 +170,8 @@ def apply_edge_case_mutations(config):
     - Edge Case 1 (Dropped Webhook): simulate_dropped_webhooks.py
     - Edge Case 2 (Fee Overcharge): simulate_fee_overcharges.py
     - Edge Case 3 (Non-Reversed Refunds): simulate_non_reversed_refunds.py
+    - Edge Case 4 (Chargeback Holds): simulate_chargebacks.py
+    - Edge Case 5 (Section 194-O TDS): simulate_section_194o_tds.py
     """
     enable_edge_cases = config.getboolean("EDGE_CASES", "enable_edge_cases", fallback=True)
     if not enable_edge_cases:
@@ -164,11 +179,18 @@ def apply_edge_case_mutations(config):
         return
 
     dropped_count = config.getint("EDGE_CASES", "dropped_webhook_count", fallback=2)
-    fee_overcharge_count = config.getint("EDGE_CASES", "fee_overcharge_count", fallback=3)
-    orphan_count = config.getint("EDGE_CASES", "orphan_refund_count", fallback=1)
+    fee_overcharge_count = config.getint("EDGE_CASES", "fee_overcharge_count", fallback=2)
+    orphan_count = config.getint("EDGE_CASES", "orphan_refund_count", fallback=2)
+    chargeback_count = config.getint("EDGE_CASES", "chargeback_hold_count", fallback=1)
 
     base_mdr = config.getfloat("CONTRACTED_RATES", "mdr_rate_percent", fallback=2.0) / 100.0
     gst_rate = config.getfloat("CONTRACTED_RATES", "gst_rate_percent", fallback=18.0) / 100.0
+
+    is_tds_str = config.get("MERCHANT_TAX_PROFILE", "is_tds_applicable", fallback="no").strip().lower()
+    is_tds_applicable = is_tds_str in ["yes", "true", "1", "y"]
+    tds_rate = config.getfloat("MERCHANT_TAX_PROFILE", "tds_rate_percent", fallback=1.0) / 100.0
+    gstin = config.get("MERCHANT_TAX_PROFILE", "gstin", fallback="36AATUF1234F1ZV")
+    pan = config.get("MERCHANT_TAX_PROFILE", "pan", fallback="ABCDE1234F")
 
     print("\n[MUTATOR] Applying Config-Driven Isolated Edge Case Simulations...")
 
@@ -180,6 +202,12 @@ def apply_edge_case_mutations(config):
 
     # 3. Edge Case 3: Dynamic Non-Reversed Customer Refunds
     apply_non_reversed_refunds_simulation(DB_PATH, orphan_count, base_mdr=base_mdr, gst_rate=gst_rate)
+
+    # 4. Edge Case 4: Customer Chargebacks & Dispute Fee Holds
+    apply_chargebacks_simulation(DB_PATH, chargeback_count, dispute_fee=500.0, gst_rate=gst_rate)
+
+    # 5. Edge Case 5: Section 194-O Statutory TDS Upfront Deduction
+    apply_section_194o_tds_simulation(DB_PATH, is_tds_applicable=is_tds_applicable, tds_rate=tds_rate, gstin=gstin, pan=pan)
 
 
 def prepare_bank_transactions(payment_rows, config):

@@ -1,0 +1,188 @@
+{
+  "version": "2.0",
+  "authority": "AutoReconAI Multi-Agent Financial Controller Tool Registry",
+  "tools": [
+    {
+      "function_name": "get_reconciliation_overview",
+      "description": "Calculates high-level 3-way reconciliation health metrics across all uploaded files (Store Orders, Razorpay Settlements, and Bank Statement). Computes overall GMV, total gateway MDR fees, 18% GST, Section 194-O TDS deductions, net bank deposits, overall reconciliation match rate (%), and pre-formats the Master 5-Way Financial Recovery Summary table.",
+      "data_source": "session_data (Store Orders CSV, Razorpay Settlements CSV, Bank Statement Excel/PDF)",
+      "inputs": {},
+      "output_fields": {
+        "match_rate": "Overall reconciliation percentage (e.g. 91.6%)",
+        "total_store_orders": "Total count of orders in store CSV",
+        "total_settlement_transactions": "Total count of settlement rows",
+        "total_gmv_inr": "Gross Merchandise Value of captured orders",
+        "total_gateway_fees_inr": "Total MDR processing fees charged",
+        "total_gst_inr": "Total 18% GST charged on MDR fees",
+        "total_tds_inr": "Total Section 194-O TDS withheld by gateway",
+        "total_bank_deposited_inr": "Total net cash deposited into bank account",
+        "mismatch_categories": "Dictionary of 5 mismatch categories with counts, sample order IDs, and cash amounts",
+        "default_table_md": "Pre-formatted Markdown string containing the Master 5-Way Financial Recovery & Mismatch Summary Table"
+      }
+    },
+    {
+      "function_name": "calculate_fee_discrepancies",
+      "description": "Audits all captured settlement transactions against the active contracted SLA terms (from config.ini). Identifies orders where the gateway billed an MDR rate higher than the contracted rate (e.g. 2.59% or 2.79% vs contracted 2.00% MDR + 18% GST = 2.36% SLA). Excludes dispute holds and refunds.",
+      "data_source": "session_data (Razorpay Settlements CSV cross-referenced with Store Orders CSV and config.ini SLA)",
+      "inputs": {},
+      "output_fields": {
+        "contracted_sla_terms": "Active SLA text (e.g. 2.00% Domestic MDR + 18.00% GST (Total Effective 2.36%))",
+        "total_overcharged_orders": "Count of orders billed above contracted SLA",
+        "total_claimable_overcharge_inr": "Total excess rupee amount claimable from Razorpay as billing refund",
+        "discrepancy_details": "Itemized list of overcharged orders with date, order_id, payment_id, settlement_utr, billed_amount, charged_fee, charged_tax, effective_charged_rate, contracted_fee, contracted_tax, and overcharge_amount",
+        "default_table_md": "Pre-formatted Markdown date-wise overcharges table with header SLA formula and bottom TOTALS summary row"
+      }
+    },
+    {
+      "function_name": "generate_dispute_ticket",
+      "description": "Generates a formal, ready-to-send Razorpay Merchant Dispute Claim Ticket email payload for overbilled transactions, containing merchant MID, total claimable refund amount, SLA breach terms, and itemized transaction evidence table.",
+      "data_source": "session_data (derived from calculate_fee_discrepancies output)",
+      "inputs": {
+        "order_ids": {
+          "type": "array of strings",
+          "description": "Optional list of specific Order IDs to include. If omitted, includes all overcharged orders."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Dispute reason text (defaults to Gateway MDR SLA Overcharge)"
+        }
+      },
+      "output_fields": {
+        "ticket_type": "OFFICIAL_MERCHANT_DISPUTE_CLAIM",
+        "from_email": "merchant-disputes@freshmart-store.com",
+        "to_email": "merchant-support@razorpay.com",
+        "subject": "Email subject line with batch order count",
+        "total_claim_amount_inr": "Total claimable INR refund amount",
+        "contracted_sla_terms": "Active contracted SLA rates",
+        "disputed_orders": "List of structured order proof objects"
+      }
+    },
+    {
+      "function_name": "audit_chargeback_holds",
+      "description": "Audits all customer bank chargeback dispute holds and escrow deductions (Edge Case 4). Identifies dispute IDs (disp_xxxx), disputed order GMV, INR 500.00 dispute handling fee, INR 90.00 GST (18%), total escrow debit, customer name, payment timestamp, and required Proof of Delivery (PoD) defense actions within the 7-day SLA window.",
+      "data_source": "session_data (Razorpay Settlements CSV dispute rows cross-joined with Store Orders CSV customer details)",
+      "inputs": {},
+      "output_fields": {
+        "total_chargeback_orders": "Count of orders under active chargeback dispute",
+        "total_disputed_gmv_inr": "Total original order GMV placed on hold",
+        "total_dispute_penalty_inr": "Total penalty fees charged by gateway (INR 500 fee + INR 90 GST per dispute)",
+        "total_escrow_debit_inr": "Total funds debited from merchant payout into temporary dispute escrow",
+        "defense_guidance": "Official compliance guidance for submitting courier AWB tracking and tax invoice within 7 days",
+        "chargeback_details": "Itemized list of dispute records with date, order_id, customer_name, customer_paid_amount, payment_id, settlement_utr, disputed_order_amount, dispute_fee, dispute_tax, total_penalty_fee, and total_escrow_debit",
+        "default_table_md": "Pre-formatted Markdown table of bank dispute holds with bottom summary row"
+      }
+    },
+    {
+      "function_name": "calculate_refund_fee_leakage",
+      "description": "Calculates non-reversed payment gateway processing fee leakage on customer refunds. When a customer refund is processed, Razorpay retains the original 2.00% MDR + 18% GST transaction fee as unrecoverable merchant operating loss.",
+      "data_source": "session_data (Razorpay Settlements CSV refund rows cross-referenced with Store Orders CSV)",
+      "inputs": {},
+      "output_fields": {
+        "refund_count": "Count of customer refunds processed",
+        "total_refund_gmv_inr": "Total refunded GMV returned to customers",
+        "total_fee_leakage_inr": "Total unreversed MDR + GST transaction fees lost by merchant",
+        "claimable_from_gateway_inr": "0.00 (Fees are non-refundable under gateway policy)",
+        "refund_policy_note": "Razorpay transaction fees and GST are non-refundable on processed refunds",
+        "refund_details": "List of refund entries with date, order_id, payment_id, refund_amount, retained_mdr_fee, retained_gst_tax, and unreversed_fee_loss",
+        "default_table_md": "Pre-formatted Markdown refund fee loss table"
+      }
+    },
+    {
+      "function_name": "audit_tax_and_tds_deductions",
+      "description": "Performs a complete statutory dual-mode tax audit covering: (1) Direct Tax: Section 194-O Income Tax TDS withholding (1.00% withheld on gross sales, verified against Merchant PAN in Form 26AS), and (2) Indirect Tax: 18% GST Input Tax Credit (ITC) on gateway MDR fees, claimable under Table 4(A)(5) of monthly GSTR-3B.",
+      "data_source": "session_data (Razorpay Settlements CSV captured rows + config.ini Merchant Tax Profile)",
+      "inputs": {},
+      "output_fields": {
+        "is_tds_applicable": "Boolean flag indicating if Section 194-O TDS is enabled in config.ini",
+        "merchant_tax_profile": "Merchant PAN, GSTIN, and statutory withholding policy",
+        "total_gmv_inr": "Total gross sales GMV audited",
+        "total_mdr_fees_inr": "Total gateway MDR processing fees",
+        "total_input_gst_itc_inr": "18% Input GST paid on MDR (100% eligible Input Tax Credit)",
+        "total_section_194o_tds_inr": "Total 1% Section 194-O TDS withheld by gateway",
+        "default_table_md": "Pre-formatted Markdown dual-table statement (Table 1: Section 194-O TDS / Table 2: GST ITC)",
+        "accounting_guidance": "Official compliance instructions for Form 26AS advance tax reconciliation and GSTR-3B Table 4(A)(5) credit claims"
+      }
+    },
+    {
+      "function_name": "inspect_order_lifecycle",
+      "description": "Performs a deep 3-way forensic lifecycle trace of a specific Order ID across all 3 ledgers: (1) Store Orders Ledger (customer name, gross GMV, order status, creation timestamp), (2) Razorpay Settlements Ledger (payment ID, billed amount, charged fee, GST, effective rate, net credit, UTR, dispute records, refund records), and (3) Bank Statement Ledger (deposit amount, credit date, narration, matched UTR).",
+      "data_source": "session_data (Store Orders CSV, Razorpay Settlements CSV, Bank Statement Excel/PDF)",
+      "inputs": {
+        "order_id": {
+          "type": "string",
+          "description": "The exact Order ID to trace (e.g. ORD_1016, ORD_1023, ORD_1036, ORD_PRIOR_901)"
+        }
+      },
+      "output_fields": {
+        "order_id": "Normalized target Order ID",
+        "store_order_ledger": "Customer name, gross amount, order status, and creation date",
+        "razorpay_settlement_ledger": "Payment ID, billed amount, MDR fee, GST, effective rate, net credit, and settlement UTR",
+        "bank_statement_ledger": "Deposit credit amount, transaction date, narration, and UTR match status",
+        "chargeback_dispute_details": "Dispute ID, dispute handling fee, GST on fee, total escrow debit, and PoD action",
+        "financial_audit_diagnosis": "5-way anomaly classification, SLA overcharge amount, escrow held amount, and recommended action"
+      }
+    },
+    {
+      "function_name": "list_mismatches",
+      "description": "Lists all anomalous or mismatched orders across the 3-way reconciliation pipeline, filtered by anomaly category: fee_overcharge (SLA rate breaches), dropped_webhook (payment captured in Razorpay but order left PENDING in store), orphan_refund (prior-period customer refund deductions), or missing_bank_credit (settled UTR not deposited in bank).",
+      "data_source": "session_data (3-way cross-verification between Store Orders, Settlements, and Bank Statement)",
+      "inputs": {
+        "category": {
+          "type": "string",
+          "description": "Filter by anomaly category: all, fee_overcharge, dropped_webhook, orphan_refund, or missing_bank_credit"
+        }
+      },
+      "output_fields": {
+        "total_mismatched_orders": "Count of matching anomalous orders",
+        "filter_applied": "The category filter used",
+        "mismatches": "List of mismatched order objects with order_id, payment_id, settlement_utr, billed_amount, charged_fee, charged_tax, store_status, and detailed anomaly descriptions",
+        "default_table_md": "Pre-formatted Markdown table listing all mismatched orders and required actions"
+      }
+    },
+    {
+      "function_name": "query_gateway_payments_db",
+      "description": "Performs a read-only, parameterized SQL query against Razorpay authentic Payment Gateway core database (payments table in store.db). Used to verify raw captured payment records, status, settlement UTR, and timestamps directly at the gateway database level.",
+      "data_source": "store.db (SQLite database payments table accessed in read-only mode ?mode=ro)",
+      "inputs": {
+        "filter_key": {
+          "type": "string",
+          "description": "Optional column to filter on: order_id, payment_id, status, or settlement_utr"
+        },
+        "filter_value": {
+          "type": "string",
+          "description": "Optional value to search for (e.g. ORD_1016, pay_P1016_1AB4F2, captured)"
+        }
+      },
+      "output_fields": {
+        "gateway_table": "payments",
+        "authority": "Razorpay Gateway Core Database (Read-Only Defense Active)",
+        "total_records_in_db": "Total row count in payments table",
+        "returned_records_count": "Count of records matching filter criteria",
+        "records": "List of raw database rows matching query",
+        "note": "Client-side merchant store tables (orders/cart/products) are private client data and cannot be queried directly from gateway DB"
+      }
+    },
+    {
+      "function_name": "calculate_tax_breakdown",
+      "description": "Calculates standard Indian GST (18%) and total amount on any given base fee or transaction amount.",
+      "data_source": "Pure mathematical calculation (CGST 9% + SGST 9% or IGST 18%)",
+      "inputs": {
+        "base_amount": {
+          "type": "number",
+          "description": "Base MDR fee or transaction amount in INR (e.g. 15000.00)"
+        },
+        "tax_rate_pct": {
+          "type": "number",
+          "description": "GST tax rate percentage (default 18.0)"
+        }
+      },
+      "output_fields": {
+        "base_amount_inr": "Input base amount",
+        "tax_rate_percent": "Applied tax rate percentage",
+        "calculated_gst_tax_inr": "Calculated GST amount",
+        "total_amount_including_tax_inr": "Total base + GST amount",
+        "statutory_note": "CGST Act statutory reference"
+      }
+    }
+  ]
+}

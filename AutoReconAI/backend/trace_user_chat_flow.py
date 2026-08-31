@@ -78,15 +78,12 @@ def run_tests_on_commit_9daf27a():
         a1 = p.get("agent_1", {})
         a2 = p.get("agent_2", {})
         a3 = p.get("agent_3", {})
-        a4 = p.get("agent_4", {})
 
-        print(f"📁 [Agent 1 - IngestionAuditor] : Status = {a1.get('status')}", flush=True)
-        print(f"🧠 [Agent 2 - SentinelRouter]  : Scope = {a2.get('scope')}, Intent = {a2.get('intent')}", flush=True)
-        print(f"   ↳ Tags                      : {a2.get('tags')}", flush=True)
-        print(f"   ↳ Extracted Entities        : {a2.get('entities')}", flush=True)
-        print(f"   ↳ Summary                   : \"{a2.get('summary')}\"", flush=True)
-        print(f"⚙️ [Agent 3 - ReconAuditor]    : Tools Called = {[t.get('tool') for t in a3.get('tools_called', [])]}", flush=True)
-        print(f"✍️ [Agent 4 - Synthesizer]    : Status = {a4.get('status')}", flush=True)
+        print(f"🛡️ [Agent 1 - SentinelFirewallAI] : Status = {a1.get('status')}", flush=True)
+        print(f"🧠 [Agent 2 - DomainReasonerAI]   : Status = {a2.get('status')}, Tools Called = {[t.get('tool') for t in a2.get('tools_called', [])]}", flush=True)
+        if a2.get('summary'):
+            print(f"   ↳ Summary                   : \"{a2.get('summary')[:90]}...\"", flush=True)
+        print(f"✍️ [Agent 3 - PrecisionSynthesizer]: Status = {a3.get('status')}", flush=True)
         print(f"\n💬 Output Answer:\n{res.get('answer', '')}\n", flush=True)
 
     print("=" * 80, flush=True)

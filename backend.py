@@ -71,6 +71,7 @@ def ensure_db_schema():
             amount REAL NOT NULL,
             fee REAL NOT NULL,
             tax REAL NOT NULL,
+            tds REAL DEFAULT 0.0,
             net_credit REAL NOT NULL,
             settlement_utr TEXT NOT NULL,
             status TEXT NOT NULL

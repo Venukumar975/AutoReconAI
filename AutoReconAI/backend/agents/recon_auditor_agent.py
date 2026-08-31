@@ -13,6 +13,7 @@ import json
 import requests
 import traceback
 import dotenv
+dotenv.load_dotenv()
 from .tools import ReconToolbox
 from config_loader import GatewayConfig, ModelConfig
 
@@ -22,14 +23,19 @@ CANDIDATE_MODELS = ModelConfig.get_model_fallback_chain()
 AUDITOR_SYSTEM_PROMPT = """You are ReconAuditorAI — the Fact Gathering and Tool-Calling Execution AI Agent for AutoReconAI.
 
 YOUR MISSION:
-Analyze the merchant's enriched query and DomainReasonerAI's intent tags. Call the necessary tools to retrieve all required facts, calculations, and ledger data from the live session:
+Analyze the merchant's query and intent tags. Call the necessary tools to retrieve all required facts, calculations, and ledger data from the live session:
 - get_reconciliation_overview: For match rates, GMV, total fees, and high-level stats.
 - calculate_fee_discrepancies: For exact MDR fee overcharge calculations (2.00% SLA breach).
 - calculate_refund_fee_leakage: For calculating non-reversed MDR fees + 18% GST overhead losses on customer refunds.
+- audit_chargeback_holds: For customer bank dispute holds, chargeback deductions, and Proof of Delivery requirements.
+- audit_tax_and_tds_deductions: For Section 194-O TDS withholding and claimable GST Input Tax Credit (ITC).
 - inspect_order_lifecycle: For tracing a specific Order ID across 3 ledgers.
 - list_mismatches: For anomaly lists (dropped webhooks, orphan refunds, fee overcharges).
 - query_gateway_payments_db: For inspecting Razorpay gateway core payments database.
 - generate_dispute_ticket: For compiling dispute claim ticket payloads.
+
+MULTI-TOOL EXECUTION DIRECTIVE:
+You have full capability to execute MULTIPLE TOOLS in sequence. If a user's request asks for composite financial insights (e.g. fee overcharges + dispute claim, or chargeback holds + refund fee leakage, or order trace + raw gateway DB lookup, or statutory tax + reconciliation overview), DO NOT stop after 1 tool. Call all relevant tools sequentially so the synthesizer has complete facts.
 """
 
 TOOL_DECLARATIONS = [
@@ -144,6 +150,24 @@ TOOL_DECLARATIONS = [
                     },
                     "required": ["base_amount"]
                 }
+            },
+            {
+                "name": "audit_chargeback_holds",
+                "description": "Audits all customer bank chargebacks, dispute holds, and non-refundable dispute handling fees with Proof of Delivery defense requirements.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {},
+                    "required": []
+                }
+            },
+            {
+                "name": "audit_tax_and_tds_deductions",
+                "description": "Audits Section 194-O Statutory TDS deductions and claimable GST Input Tax Credit (ITC) on gateway MDR fees.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {},
+                    "required": []
+                }
             }
         ]
     }
@@ -151,20 +175,16 @@ TOOL_DECLARATIONS = [
 
 
 class ReconAuditorAI:
-    """Agent 3: Executes dynamic tool calling using enriched query & tags, gathering raw facts."""
+    """Agent 3: Executes dynamic tool calling using user query & tags, gathering raw facts."""
 
     @staticmethod
     def audit_and_gather_facts(user_query: str, router_result: dict, session_data: dict) -> dict:
         tools_called_log = []
         collected_tool_results = {}
 
-        enriched_query = router_result.get("enriched_query") or user_query
         intent = router_result.get("intent", "COMPREHENSIVE_AUDIT")
         tags_str = ", ".join(router_result.get("tags", []))
         extracted_oid = router_result.get("extracted_entities", {}).get("order_id")
-
-        if not API_KEY:
-            return ReconAuditorAI._fallback_auditor(enriched_query, router_result, session_data, tools_called_log)
 
         initial_prompt = (
             f"{AUDITOR_SYSTEM_PROMPT}\n\n"
@@ -172,9 +192,8 @@ class ReconAuditorAI:
             f"[DomainReasonerAI Analysis]:\n"
             f"- Intent: {intent}\n"
             f"- Tags: {tags_str}\n"
-            f"- Extracted Entities: {json.dumps(router_result.get('extracted_entities', {}))}\n"
-            f"- Enriched Query: {enriched_query}\n\n"
-            f"ORIGINAL QUERY: {user_query}"
+            f"- Extracted Entities: {json.dumps(router_result.get('extracted_entities', {}))}\n\n"
+            f"MERCHANT USER QUERY: \"{user_query}\""
         )
 
         success = False
@@ -241,48 +260,17 @@ class ReconAuditorAI:
                         })
                     else:
                         final_text = parts[0].get("text", "") if parts else ""
-
-                        # --- GUARANTEED TOOL CALL ENFORCER ---
-                        intent = router_result.get("intent", "")
-                        tags = router_result.get("tags", [])
-
-                        if intent == "DISPUTE_CLAIM" or any(t in tags for t in ["#dispute_claim", "#dispute_ticket"]):
-                            if "generate_dispute_ticket" not in loop_results:
-                                ticket_output = ReconToolbox.generate_dispute_ticket(session_data)
-                                loop_results["generate_dispute_ticket"] = ticket_output
-                                loop_tools_log.append({"tool": "generate_dispute_ticket", "args": {}, "summary": "Compiled dispute claim ticket"})
-
-                        if any(t in tags for t in ["#fee_overcharge", "#fee_overcharge_table", "#recoverable_amount", "#summary_row"]) or intent in ["POINT_METRIC_QUERY", "COMPREHENSIVE_AUDIT"]:
-                            if "calculate_fee_discrepancies" not in loop_results:
-                                fee_output = ReconToolbox.calculate_fee_discrepancies(session_data)
-                                loop_results["calculate_fee_discrepancies"] = fee_output
-                                loop_tools_log.append({"tool": "calculate_fee_discrepancies", "args": {}, "summary": "Executed calculate_fee_discrepancies()"})
-
-                        return {
-                            "auditor_summary": final_text,
-                            "collected_tool_data": loop_results,
-                            "tools_called": loop_tools_log
-                        }
+                        success = True
+                        final_summary_text = final_text
+                        collected_tool_results = loop_results
+                        tools_called_log = loop_tools_log
+                        break
 
                 except Exception:
                     break
 
             if success:
                 break
-
-        if not success or not collected_tool_results:
-            return ReconAuditorAI._fallback_auditor(enriched_query, router_result, session_data, tools_called_log)
-
-        # Safety Check: Guarantee critical tool outputs based on Intent
-        if intent == "DISPUTE_CLAIM" and "calculate_fee_discrepancies" not in collected_tool_results:
-            fee_data = ReconToolbox.calculate_fee_discrepancies(session_data)
-            collected_tool_results["calculate_fee_discrepancies"] = fee_data
-            tools_called_log.append({"tool": "calculate_fee_discrepancies", "args": {}, "summary": "Calculated MDR fee discrepancies (Guaranteed)"})
-
-        if intent == "SINGLE_ORDER_TRACE" and extracted_oid and "inspect_order_lifecycle" not in collected_tool_results:
-            order_data = ReconToolbox.inspect_order_lifecycle(session_data, order_id=extracted_oid)
-            collected_tool_results["inspect_order_lifecycle"] = order_data
-            tools_called_log.append({"tool": "inspect_order_lifecycle", "args": {"order_id": extracted_oid}, "summary": f"Traced order {extracted_oid} (Guaranteed)"})
 
         return {
             "auditor_summary": final_summary_text or "Audit facts gathered from live reconciliation ledgers.",
@@ -302,6 +290,10 @@ class ReconAuditorAI:
             return ReconToolbox.calculate_fee_discrepancies(session_data)
         elif fn_name == "calculate_refund_fee_leakage":
             return ReconToolbox.calculate_refund_fee_leakage(session_data)
+        elif fn_name == "audit_chargeback_holds":
+            return ReconToolbox.audit_chargeback_holds(session_data)
+        elif fn_name == "audit_tax_and_tds_deductions":
+            return ReconToolbox.audit_tax_and_tds_deductions(session_data)
         elif fn_name == "query_gateway_payments_db":
             return ReconToolbox.query_gateway_payments_db(
                 filter_key=fn_args.get("filter_key"),
@@ -320,24 +312,41 @@ class ReconAuditorAI:
             )
         return {"error": f"Unknown tool '{fn_name}'"}
 
-    @staticmethod
-    def _fallback_auditor(query: str, router_result: dict, session_data: dict, tools_log: list = None):
-        intent = router_result.get("intent", "COMPREHENSIVE_AUDIT")
-        extracted_oid = router_result.get("extracted_entities", {}).get("order_id")
-        tools_log = tools_log or []
-        collected = {}
+        # 3. Customer Bank Chargeback Holds
+        if intent == "CHARGEBACK_AUDIT" or any(t in tags for t in ["#chargeback_hold", "#bank_dispute"]) or any(k in q_lower for k in ["chargeback", "dispute hold", "escrow", "cash-at-risk", "cash risk"]):
+            collected["audit_chargeback_holds"] = ReconToolbox.audit_chargeback_holds(session_data)
+            tools_log.append({"tool": "audit_chargeback_holds", "args": {}, "summary": "Audited customer chargebacks & dispute holds"})
 
-        if intent in ["POINT_METRIC_QUERY", "DISPUTE_CLAIM"]:
-            fee_data = ReconToolbox.calculate_fee_discrepancies(session_data)
-            collected["calculate_fee_discrepancies"] = fee_data
-            tools_log.append({"tool": "calculate_fee_discrepancies", "args": {}, "summary": "Calculated MDR overcharges"})
-        elif intent == "SINGLE_ORDER_TRACE" and extracted_oid:
-            order_data = ReconToolbox.inspect_order_lifecycle(session_data, order_id=extracted_oid)
-            collected["inspect_order_lifecycle"] = order_data
+        # 4. Refund Fee Leakage
+        if any(k in q_lower for k in ["refund fee", "fee leakage", "leakage", "unreversed fee", "cash-at-risk", "cash risk"]):
+            collected["calculate_refund_fee_leakage"] = ReconToolbox.calculate_refund_fee_leakage(session_data)
+            tools_log.append({"tool": "calculate_refund_fee_leakage", "args": {}, "summary": "Calculated refund fee leakage"})
+
+        # 5. Section 194-O TDS & GST ITC
+        if intent == "TAX_TDS_ITC_AUDIT" or any(t in tags for t in ["#section_194o_tds", "#gst_itc", "#tax_reconciliation"]) or any(k in q_lower for k in ["tds", "itc", "194-o", "gstr-3b", "tax audit"]):
+            collected["audit_tax_and_tds_deductions"] = ReconToolbox.audit_tax_and_tds_deductions(session_data)
+            tools_log.append({"tool": "audit_tax_and_tds_deductions", "args": {}, "summary": "Audited Section 194-O TDS & GST ITC"})
+
+        # 6. Single Order Lifecycle Trace
+        if extracted_oid:
+            collected["inspect_order_lifecycle"] = ReconToolbox.inspect_order_lifecycle(session_data, order_id=extracted_oid)
             tools_log.append({"tool": "inspect_order_lifecycle", "args": {"order_id": extracted_oid}, "summary": f"Traced order {extracted_oid}"})
-        else:
-            overview = ReconToolbox.get_reconciliation_overview(session_data)
-            collected["get_reconciliation_overview"] = overview
+
+        # 7. Gateway Payments Database Query
+        if any(k in q_lower for k in ["gateway db", "payments table", "database", "gateway database", "raw gateway"]):
+            filter_v = extracted_oid if extracted_oid else None
+            filter_k = "order_id" if filter_v else None
+            collected["query_gateway_payments_db"] = ReconToolbox.query_gateway_payments_db(filter_key=filter_k, filter_value=filter_v)
+            tools_log.append({"tool": "query_gateway_payments_db", "args": {"filter_key": filter_k, "filter_value": filter_v}, "summary": "Queried gateway payments database"})
+
+        # 8. Mismatches List
+        if any(k in q_lower for k in ["dropped webhook", "pending in store", "list mismatches", "anomaly list"]):
+            collected["list_mismatches"] = ReconToolbox.list_mismatches(session_data, category="dropped_webhook" if "webhook" in q_lower else "all")
+            tools_log.append({"tool": "list_mismatches", "args": {}, "summary": "Fetched category mismatch list"})
+
+        # 9. Macro Reconciliation Overview (Default fallback if nothing else collected)
+        if not collected or intent == "COMPREHENSIVE_AUDIT" or any(k in q_lower for k in ["match rate", "overview", "macro", "overall 3-way", "5 edge cases", "all mismatches", "summary table"]):
+            collected["get_reconciliation_overview"] = ReconToolbox.get_reconciliation_overview(session_data)
             tools_log.append({"tool": "get_reconciliation_overview", "args": {}, "summary": "Fetched high-level ledger stats"})
 
         return {

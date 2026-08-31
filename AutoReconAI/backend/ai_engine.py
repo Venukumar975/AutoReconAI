@@ -1,12 +1,10 @@
 """
 AutoReconAI - Financial AI Controller Pipeline Orchestrator
 ============================================================
-Coordinates the 4-Stage Multi-Agent Architecture with Dependency Gating:
-1. SentinelFirewallAI    -> Hybrid Deterministic & Semantic Security Firewall, Scope Guardrail & Courtesy Bypass.
-2. DomainReasonerAI      -> Domain Context Reasoner, Query Rewriter/Enricher, Intent Tagger & Data Requirement Planner.
-   [Dependency Gate]     -> Evaluates dynamic data_requirements against live session data; triggers DATA_REQUIRED if missing.
-3. ReconAuditorAI        -> Fact Gatherer executing isolated tools via Gemini 3 Function Calling with parameterized safety.
-4. PrecisionSynthesizerAI -> Pure Presentation Formatter delivering direct, zero-boilerplate, mathematically immutable answers.
+Coordinates the 3-Agent Multi-Agent Architecture with Dependency Gating:
+1. SentinelFirewallAI    -> Agent 1: Hybrid Deterministic & Semantic Security Firewall, Scope Guardrail & Courtesy Bypass.
+2. DomainReasonerAI      -> Agent 2: Domain Context Reasoner, Memory Manager & Autonomous ReAct Tool Execution Auditor.
+3. PrecisionSynthesizerAI -> Agent 3: Pure Presentation Formatter delivering direct, zero-boilerplate, mathematically immutable answers.
 """
 
 import sys
@@ -18,7 +16,6 @@ sys.path.insert(0, CURRENT_DIR)
 
 from agents.ingestion_auditor_agent import SentinelFirewallAI
 from agents.sentinel_router_agent import DomainReasonerAI
-from agents.recon_auditor_agent import ReconAuditorAI
 from agents.precision_synthesizer_agent import PrecisionSynthesizerAI
 from agents.tools import ReconToolbox
 
@@ -31,17 +28,15 @@ class AIFinanceEngine:
     @staticmethod
     def execute_pipeline(user_query: str, session_data: dict) -> dict:
         """
-        Executes the 4-Stage Conversational AI Pipeline with dynamic dependency evaluation:
-        Stage 1: SentinelFirewallAI (Security, Scope & Courtesy)
-        Stage 2: DomainReasonerAI (Domain Reasoning, Query Enrichment, Intent & Data Requirements)
-        [Gate]: Evaluates data_requirements -> short-circuits to DATA_REQUIRED if files missing.
-        Stage 3: ReconAuditorAI (Isolated Parameterized Tool Calling & Verified Fact Gathering)
-        Stage 4: PrecisionSynthesizerAI (Mathematical Immutability & Tag-Aligned Presentation)
+        Executes the 3-Stage Conversational AI Pipeline with dynamic dependency evaluation:
+        Stage 1: SentinelFirewallAI (Security, Scope & Ingestion Gatekeeper)
+        Stage 2: DomainReasonerAI (Domain Reasoning, Autonomous ReAct Tool Calling & Verified Fact Gathering)
+        Stage 3: PrecisionSynthesizerAI (Mathematical Immutability & Tag-Aligned Presentation Formatting)
         """
         history_snapshot = list(SESSION_CHAT_MEMORY)
 
-        # --- STAGE 1: SentinelFirewallAI (Security Firewall & Scope Guardrail) ---
-        firewall_check = SentinelFirewallAI.inspect_query_security_and_scope(user_query)
+        # --- STAGE 1: SentinelFirewallAI (Agent 1: Security Firewall & Ingestion Gatekeeper) ---
+        firewall_check = SentinelFirewallAI.inspect_query_security_and_scope(user_query, session_data)
         if not firewall_check.get("ready"):
             return {
                 "success": True,
@@ -56,10 +51,6 @@ class AIFinanceEngine:
                         "status": "SKIPPED"
                     },
                     "agent_3": {
-                        "name": "ReconAuditorAI",
-                        "status": "SKIPPED"
-                    },
-                    "agent_4": {
                         "name": "PrecisionSynthesizerAI",
                         "status": "SKIPPED"
                     }
@@ -67,22 +58,18 @@ class AIFinanceEngine:
                 "answer": firewall_check.get("message", "Request blocked by Security Firewall.")
             }
 
-        # --- STAGE 2: DomainReasonerAI (Domain Intent Classifier with Memory) ---
-        router_result = DomainReasonerAI.classify_and_tag(user_query, session_data, history_snapshot)
+        # --- STAGE 2: DomainReasonerAI (Agent 2: Autonomous ReAct Tool Execution & Fact Gathering) ---
+        reasoner_result = DomainReasonerAI.reason_and_audit(user_query, session_data, history_snapshot)
 
-        # --- STAGE 3: ReconAuditorAI (Tool Execution & Fact Gathering) ---
-        auditor_result = ReconAuditorAI.audit_and_gather_facts(user_query, router_result, session_data)
-
-        # --- STAGE 4: PrecisionSynthesizerAI (Tag-Driven Presentation Formatting) ---
-        synthesizer_result = PrecisionSynthesizerAI.synthesize_response(user_query, router_result, auditor_result, history_snapshot)
+        # --- STAGE 3: PrecisionSynthesizerAI (Agent 3: Tag-Driven Presentation Formatting) ---
+        synthesizer_result = PrecisionSynthesizerAI.synthesize_response(user_query, reasoner_result, history_snapshot)
         final_answer = synthesizer_result.get("final_answer", "")
 
         # Save turn into in-memory sliding cache
         SESSION_CHAT_MEMORY.append({
             "user": user_query,
             "assistant": final_answer,
-            "intent": router_result.get("intent", "COMPREHENSIVE_AUDIT"),
-            "order_id": router_result.get("extracted_entities", {}).get("order_id")
+            "tools_called": reasoner_result.get("tools_called", [])
         })
 
         return {
@@ -95,22 +82,11 @@ class AIFinanceEngine:
                 },
                 "agent_2": {
                     "name": "DomainReasonerAI",
-                    "status": "ENRICHED_AND_TAGGED",
-                    "scope": "IN_SCOPE",
-                    "intent": router_result.get("intent", "COMPREHENSIVE_AUDIT"),
-                    "tags": router_result.get("tags", []),
-                    "entities": router_result.get("extracted_entities", {}),
-                    "data_requirements": router_result.get("data_requirements", []),
-                    "confidence": router_result.get("confidence", 0.95),
-                    "enriched_query": router_result.get("enriched_query", user_query),
-                    "summary": router_result.get("summary", "")
+                    "status": "FACTS_GATHERED",
+                    "tools_called": reasoner_result.get("tools_called", []),
+                    "summary": reasoner_result.get("summary", "")
                 },
                 "agent_3": {
-                    "name": "ReconAuditorAI",
-                    "status": "FACTS_GATHERED",
-                    "tools_called": auditor_result.get("tools_called", [])
-                },
-                "agent_4": {
                     "name": "PrecisionSynthesizerAI",
                     "status": "TAG_ALIGNED_SYNTHESIS"
                 }

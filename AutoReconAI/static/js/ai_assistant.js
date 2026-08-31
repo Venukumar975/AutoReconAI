@@ -39,6 +39,8 @@ const AIAssistant = (() => {
     const btnExpand = document.getElementById('btn-toggle-ai-expand');
     const chipAudit = document.getElementById('chip-ai-audit');
     const chipDispute = document.getElementById('chip-ai-dispute');
+    const chipChargeback = document.getElementById('chip-ai-chargeback');
+    const chipTax = document.getElementById('chip-ai-tax');
     const chipSummary = document.getElementById('chip-ai-summary');
     const btnSend = document.getElementById('btn-ai-send');
     const inputChat = document.getElementById('ai-chat-input');
@@ -49,7 +51,9 @@ const AIAssistant = (() => {
 
     if (chipAudit) chipAudit.addEventListener('click', () => askGeminiAI("Give me an itemized date-wise fee overcharges table with a total summary row at the bottom."));
     if (chipDispute) chipDispute.addEventListener('click', () => askGeminiAI("Draft a formal Razorpay Merchant Dispute Claim Ticket email for all fee overcharges found."));
-    if (chipSummary) chipSummary.addEventListener('click', () => askGeminiAI("Provide a full financial recovery summary table of all mismatches grouped by edge cases."));
+    if (chipChargeback) chipChargeback.addEventListener('click', () => askGeminiAI("Show me details of customer dispute holds and bank chargebacks with required defense actions."));
+    if (chipTax) chipTax.addEventListener('click', () => askGeminiAI("Provide a complete statutory tax audit covering Section 194-O TDS deductions and claimable GST Input Tax Credit (ITC)."));
+    if (chipSummary) chipSummary.addEventListener('click', () => askGeminiAI("Provide a full financial recovery summary table of all mismatches grouped across all 5 edge cases."));
 
     if (btnSend && inputChat) {
       btnSend.addEventListener('click', handleCustomUserMessage);
@@ -201,8 +205,7 @@ const AIAssistant = (() => {
     if (pipeline) {
       const a1 = pipeline.agent_1 || pipeline.agent_0 || {};
       const a2 = pipeline.agent_2 || pipeline.agent_1 || {};
-      const a3 = pipeline.agent_3 || pipeline.agent_2 || {};
-      const a4 = pipeline.agent_4 || pipeline.agent_3 || {};
+      const a3 = pipeline.agent_3 || pipeline.agent_4 || {};
 
       // If blocked or out of scope: NO alert badges at all, keep it completely clean!
       if (a1.scope === 'BLOCKED' || a1.status === 'INJECTION_BLOCKED' || a2.scope === 'OUT_OF_SCOPE' || a1.scope === 'OUT_OF_SCOPE') {
@@ -217,24 +220,28 @@ const AIAssistant = (() => {
       } else {
         const a1Badge = `<div class="agent-pill agent-pill-router">🛡️ Agent 1 (SentinelFirewallAI): Security Cleared</div>`;
 
-        const tags = (a2.tags || []).map(t => `<span class="agent-tag-chip">${t}</span>`).join('');
-        const a2Badge = `<div class="agent-pill agent-pill-router">🧠 Agent 2 (DomainReasonerAI): Tagged [${a2.intent || 'IN_SCOPE'}] ${tags}</div>`;
-
-        let a3Badge = '';
-        if (a3.tools_called && a3.tools_called.length > 0) {
-          const toolNames = a3.tools_called.map(t => `<code>${t.tool}()</code>`).join(', ');
-          a3Badge = `<div class="agent-pill agent-pill-auditor">⚙️ Agent 3 (ReconAuditorAI): Executed Tools ${toolNames}</div>`;
+        let toolsDetailHtml = '';
+        const toolsCalled = a2.tools_called || [];
+        if (toolsCalled.length > 0) {
+          const toolNames = toolsCalled.map(t => typeof t === 'object' ? `<code>${t.tool}()</code>` : `<code>${t}()</code>`).join(', ');
+          toolsDetailHtml = `<div class="agent-pill-details"><span class="pill-detail-label">⚙️ Executed Tools:</span> ${toolNames} <span class="pill-detail-sep">•</span> <span class="pill-detail-label">📁 Data Sources:</span> Store Orders CSV, Settlement Payouts CSV, Bank Statement</div>`;
         }
 
-        const a4StatusText = (a4.status || 'TAILORED_SYNTHESIS').replace(/_/g, ' ');
-        const a4Badge = `<div class="agent-pill agent-pill-auditor">✍️ Agent 4 (PrecisionSynthesizerAI): ${a4StatusText}</div>`;
+        const a2Badge = `
+          <div class="agent-pill-block">
+            <div class="agent-pill agent-pill-router">🧠 Agent 2 (DomainReasonerAI): Autonomous ReAct Auditor</div>
+            ${toolsDetailHtml}
+          </div>
+        `;
+
+        const a3StatusText = (a3.status || 'TAG_ALIGNED_SYNTHESIS').replace(/_/g, ' ');
+        const a3Badge = `<div class="agent-pill agent-pill-auditor">✍️ Agent 3 (PrecisionSynthesizerAI): ${a3StatusText}</div>`;
 
         pipelineHtml = `
           <div class="pipeline-badge-container">
             ${a1Badge}
             ${a2Badge}
             ${a3Badge}
-            ${a4Badge}
           </div>
         `;
       }

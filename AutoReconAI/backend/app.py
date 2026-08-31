@@ -371,17 +371,22 @@ def generate_linked_grid():
                 else:
                     formatted_date = "-"
 
-                # Detect 3 Core Edge Case Mismatches dynamically against config
+                # Detect 5 Core Edge Case Mismatches dynamically against config
                 fee = float(s.get("fee", 0.0))
                 amount = float(s.get("amount", 0.0))
+                tds = float(s.get("tds", 0.0))
                 net_credit = float(s.get("net_credit", 0.0))
+                status_val = str(s.get("status", "")).lower()
+                txn_type = str(s.get("type", "")).lower()
+                pid = str(s.get("payment_id", ""))
 
                 fee_rate = (fee / amount) if amount > 0 else 0.0
-                is_fee_overcharged = (fee_rate > mdr_threshold)
-                is_webhook_pending = (order_status == "PENDING")
-                is_orphan_refund = (oid not in orders_by_id or net_credit < 0)
+                is_fee_overcharged = (fee_rate > mdr_threshold and status_val == "captured")
+                is_webhook_pending = (order_status == "PENDING" and status_val == "captured")
+                is_chargeback_hold = (status_val == "dispute_hold" or txn_type == "dispute_hold" or pid.startswith("disp_"))
+                is_orphan_refund = (status_val == "refunded" or txn_type == "refund" or pid.startswith("rfnd_") or (oid not in orders_by_id and net_credit < 0))
 
-                is_mismatched = is_webhook_pending or is_fee_overcharged or is_orphan_refund
+                is_mismatched = is_webhook_pending or is_fee_overcharged or is_orphan_refund or is_chargeback_hold
 
                 if is_mismatched:
                     unique_mismatched_oids.add(oid)
@@ -400,6 +405,7 @@ def generate_linked_grid():
                     "billed": s["amount"],
                     "mdr": s["fee"],
                     "gst": s["tax"],
+                    "tds": s.get("tds", 0.0),
                     "net_payout": s["net_credit"],
                     "matched": matched_badge,
                     "settled": settled_badge,
@@ -407,7 +413,8 @@ def generate_linked_grid():
                     "is_mismatched": is_mismatched,
                     "is_fee_overcharged": is_fee_overcharged,
                     "is_webhook_pending": is_webhook_pending,
-                    "is_orphan_refund": is_orphan_refund
+                    "is_orphan_refund": is_orphan_refund,
+                    "is_chargeback_hold": is_chargeback_hold
                 })
 
             grouped_utr_list.append({

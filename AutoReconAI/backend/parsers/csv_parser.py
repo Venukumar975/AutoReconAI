@@ -41,9 +41,10 @@ def parse_settlement_csv(file_path: str) -> List[Dict[str, Any]]:
                 amount = float(row.get("amount", 0.0))
                 fee = float(row.get("fee", 0.0))
                 tax = float(row.get("tax", 0.0))
+                tds = float(row.get("tds", 0.0))
                 net_credit = float(row.get("net_credit", 0.0))
             except ValueError:
-                amount = fee = tax = net_credit = 0.0
+                amount = fee = tax = tds = net_credit = 0.0
 
             settlements.append({
                 "settlement_id": row.get("settlement_id", "").strip(),
@@ -53,6 +54,7 @@ def parse_settlement_csv(file_path: str) -> List[Dict[str, Any]]:
                 "amount": amount,
                 "fee": fee,
                 "tax": tax,
+                "tds": tds,
                 "net_credit": net_credit,
                 "type": row.get("type", "payment").strip(),
                 "status": row.get("status", "captured").strip(),

@@ -116,6 +116,7 @@ def process_payment():
                 amount REAL NOT NULL,
                 fee REAL NOT NULL,
                 tax REAL NOT NULL,
+                tds REAL DEFAULT 0.0,
                 net_credit REAL NOT NULL,
                 settlement_utr TEXT NOT NULL,
                 status TEXT NOT NULL,
@@ -164,7 +165,7 @@ def process_payment():
 
 if __name__ == "__main__":
     print(f"==================================================")
-    print(f"  ⚡ RAZORPAY PAYMENT GATEWAY CORE (PORT {PORT})")
+    print(f"  [GATEWAY] RAZORPAY PAYMENT GATEWAY CORE (PORT {PORT})")
     print(f"  Contracted SLA: {GatewayConfig.get_sla_text()}")
     print(f"==================================================")
     app.run(host="127.0.0.1", port=PORT, debug=False)

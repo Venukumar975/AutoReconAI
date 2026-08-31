@@ -29,56 +29,99 @@ class ReconToolbox:
         if not orders or not settlements or not bank_txns:
             return {
                 "status": "NO_SESSION_DATA",
-                "message": "No active reconciliation data loaded. Please ensure Store Orders CSV, Bank Statement(PDF/Excel) and Settlement CSV are uploaded."
+                "message": "No active reconciliation data loaded. Please ensure Store Orders CSV, Bank Statement (PDF/Excel) and Settlement CSV are uploaded."
             }
 
         orders_by_id = {o["order_id"]: o for o in orders}
 
         total_settlement_txns = len(settlements)
         total_store_orders = len(orders)
-        total_gmv = sum(float(s.get("amount", 0.0)) for s in settlements)
-        total_fees = sum(float(s.get("fee", 0.0)) for s in settlements)
-        total_gst = sum(float(s.get("tax", 0.0)) for s in settlements)
+        
+        # Calculate gross metrics from settlements
+        positive_settlements = [s for s in settlements if float(s.get("net_credit", 0.0)) > 0]
+        total_gmv = sum(float(s.get("amount", 0.0)) for s in positive_settlements) or sum(float(o.get("gross_amount", 0.0)) for o in orders)
+        total_fees = sum(float(s.get("fee", 0.0)) for s in positive_settlements)
+        total_gst = sum(float(s.get("tax", 0.0)) for s in positive_settlements)
+        total_tds = sum(float(s.get("tds", 0.0)) for s in positive_settlements)
         total_bank_deposited = sum(float(b.get("credit", 0.0)) for b in bank_txns if b.get("is_gateway_credit"))
 
-        mdr_threshold = GatewayConfig.get_mdr_rate() + 0.0005 # To remove rounding errors and improve precision 
+        contracted_mdr = GatewayConfig.get_mdr_rate()
+        gst_rate = GatewayConfig.get_gst_rate()
+        mdr_threshold = contracted_mdr + 0.0005 # To remove rounding errors and improve precision 
 
         dropped_webhooks = []
         fee_overcharges = []
         orphan_refunds = []
+        chargeback_holds = []
+        tds_orders = []
+
+        total_overcharge_cash = 0.0
+        total_chargeback_debit = 0.0
 
         for s in settlements:
             oid = s["order_id"]
             amount = float(s.get("amount", 0.0))
             fee = float(s.get("fee", 0.0))
+            tax = float(s.get("tax", 0.0))
+            tds_val = float(s.get("tds", 0.0))
             net_credit = float(s.get("net_credit", 0.0))
-            order_info = orders_by_id.get(oid)
+            status_val = str(s.get("status", "")).lower()
+            txn_type = str(s.get("type", "")).lower()
+            pid = str(s.get("payment_id", ""))
 
-            # Dropped webhook
-            if order_info and order_info.get("order_status") == "PENDING":
+            order_info = orders_by_id.get(oid)
+            order_status = order_info.get("order_status") if order_info else "UNKNOWN"
+
+            # 1. Dropped webhook
+            if order_info and order_status == "PENDING" and status_val == "captured":
                 dropped_webhooks.append(oid)
 
-            # MDR fee overcharge against dynamic config
+            # 2. MDR fee overcharge against dynamic config
             fee_rate = (fee / amount) if amount > 0 else 0.0
-            if fee_rate > mdr_threshold:
+            if fee_rate > mdr_threshold and status_val == "captured":
                 fee_overcharges.append(oid)
+                expected_fee = amount * contracted_mdr
+                expected_tax = expected_fee * gst_rate
+                overcharge_delta = (fee + tax) - (expected_fee + expected_tax)
+                if overcharge_delta > 0:
+                    total_overcharge_cash += overcharge_delta
 
-            # Orphan customer refund (Prior-period return deductions)
-            if oid not in orders_by_id or net_credit < 0:
+            # 3. Bank Chargeback Dispute Holds
+            if status_val == "dispute_hold" or txn_type == "dispute_hold" or pid.startswith("disp_"):
+                chargeback_holds.append(oid)
+                total_chargeback_debit += abs(net_credit)
+
+            # 4. Orphan customer refunds (Prior-period return deductions or negative refunds)
+            elif status_val == "refunded" or txn_type == "refund" or pid.startswith("rfnd_") or (oid not in orders_by_id and net_credit < 0):
                 orphan_refunds.append(oid)
 
-        unique_mismatched = sorted(list(set(dropped_webhooks + fee_overcharges + orphan_refunds)))
+            # 5. Section 194-O TDS deductions
+            if tds_val > 0:
+                tds_orders.append(oid)
+
+        unique_mismatched = sorted(list(set(dropped_webhooks + fee_overcharges + orphan_refunds + chargeback_holds)))
         mismatched_count = len(unique_mismatched)
         matched_count = max(0, total_settlement_txns - mismatched_count)
         match_rate = round((matched_count / max(total_settlement_txns, 1)) * 100, 1)
 
-        # Pre-format default_table_md for Mismatch Summary Table
+        # Calculate refund fee leakage for orphan customer refunds
+        total_orphan_refund_fee_loss = 0.0
+        for s in settlements:
+            oid = s["order_id"]
+            if oid in orphan_refunds:
+                fee = float(s.get("fee", 0.0))
+                tax = float(s.get("tax", 0.0))
+                total_orphan_refund_fee_loss += (fee + tax)
+
+        # Pre-format Master 5-Way Mismatch Summary Table (Template 5)
         summary_table_lines = [
-            "| Mismatch Category | Count | Affected Order IDs | Money Lost? | Recoverable Amount (INR) |",
-            "| :--- | :--- | :--- | :--- | :--- |",
-            f"| Fee Overcharges | {len(set(fee_overcharges))} | {', '.join(sorted(list(set(fee_overcharges)))[:5]) or '-'} | Yes | ₹{sum(float(s.get('fee', 0.0)) + float(s.get('tax', 0.0)) - (float(s.get('amount', 0.0)) * GatewayConfig.get_mdr_rate() * (1 + GatewayConfig.get_gst_rate())) for s in settlements if (float(s.get('fee', 0.0))/max(float(s.get('amount', 0.0)), 1)) > (GatewayConfig.get_mdr_rate() + 0.0005)):.2f} |",
-            f"| Dropped Webhooks | {len(set(dropped_webhooks))} | {', '.join(sorted(list(set(dropped_webhooks)))[:5]) or '-'} | No | ₹0.00 |",
-            f"| Orphan Refunds | {len(set(orphan_refunds))} | {', '.join(sorted(list(set(orphan_refunds)))[:5]) or '-'} | No | ₹0.00 |"
+            "| # | Mismatch Category | Affected Count | Sample Order IDs | Money Lost? (Yes/No) | Lost Amount (INR) | Recoverable / Held / Frozen Amount (INR) | AI Controller Action |",
+            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
+            f"| 1 | Fee Overcharges | {len(set(fee_overcharges))} | {', '.join(sorted(list(set(fee_overcharges)))[:4]) or '-'} | Yes | ₹{total_overcharge_cash:,.2f} | ₹{total_overcharge_cash:,.2f} (Recoverable) | Auto-draft Razorpay SLA dispute ticket |",
+            f"| 2 | Dropped Webhooks | {len(set(dropped_webhooks))} | {', '.join(sorted(list(set(dropped_webhooks)))[:4]) or '-'} | No | - | ₹0.00 (Safe) | Manually fulfill pending order in store dashboard |",
+            f"| 3 | Orphan Customer Refunds | {len(set(orphan_refunds))} | {', '.join(sorted(list(set(orphan_refunds)))[:4]) or '-'} | Yes (Fee Leakage) | ₹{total_orphan_refund_fee_loss:,.2f} | ₹0.00 (Unrecoverable) | Post internal journal to Returns & Allowances ledger |",
+            f"| 4 | Bank Chargeback Holds | {len(set(chargeback_holds))} | {', '.join(sorted(list(set(chargeback_holds)))[:4]) or '-'} | Pending | - | ₹{total_chargeback_debit:,.2f} (Held in Escrow) | Submit Proof of Delivery (PoD) within 7 days |",
+            f"| 5 | Section 194-O TDS | {len(set(tds_orders))} | {('All Captured Orders' if len(tds_orders) > 0 else 'None (Disabled)')} | No | - | ₹{total_tds:,.2f} (Tax Asset Credit) | Reconcile in Form 26AS / Annual ITR filing |"
         ]
 
         return {
@@ -87,6 +130,7 @@ class ReconToolbox:
             "total_gmv_inr": round(total_gmv, 2),
             "total_gateway_fees_inr": round(total_fees, 2),
             "total_gst_inr": round(total_gst, 2),
+            "total_tds_inr": round(total_tds, 2),
             "total_bank_deposited_inr": round(total_bank_deposited, 2),
             "match_rate": f"{match_rate}%",
             "matched_transactions_count": matched_count,
@@ -100,12 +144,22 @@ class ReconToolbox:
                 },
                 "fee_overcharges": {
                     "count": len(set(fee_overcharges)),
-                    "order_ids": sorted(list(set(fee_overcharges)))
+                    "order_ids": sorted(list(set(fee_overcharges))),
+                    "recoverable_cash_inr": round(total_overcharge_cash, 2)
                 },
                 "orphan_refunds": {
                     "count": len(set(orphan_refunds)),
-                    "order_ids": sorted(list(set(orphan_refunds))),
-                    "note": "Includes prior-period customer return deductions"
+                    "order_ids": sorted(list(set(orphan_refunds)))
+                },
+                "chargeback_holds": {
+                    "count": len(set(chargeback_holds)),
+                    "order_ids": sorted(list(set(chargeback_holds))),
+                    "held_amount_inr": round(total_chargeback_debit, 2)
+                },
+                "section_194o_tds": {
+                    "count": len(set(tds_orders)),
+                    "total_tds_inr": round(total_tds, 2),
+                    "is_tds_applicable": GatewayConfig.is_tds_applicable()
                 }
             }
         }
@@ -295,9 +349,16 @@ class ReconToolbox:
             clean_oid = f"ORD_{clean_oid}"
 
         order_record = next((o for o in orders if o.get("order_id") == clean_oid), None)
-        settlement_record = next((s for s in settlements if s.get("order_id") == clean_oid), None)
+        matching_settlements = [s for s in settlements if s.get("order_id") == clean_oid]
 
-        matched_utr = settlement_record.get("settlement_utr") if settlement_record else None
+        # Separate captured payment vs dispute hold vs refund entries
+        payment_record = next((s for s in matching_settlements if str(s.get("type", "")).lower() != "dispute_hold" and not str(s.get("payment_id", "")).startswith("disp_") and str(s.get("status", "")).lower() != "dispute_hold"), None)
+        dispute_record = next((s for s in matching_settlements if str(s.get("type", "")).lower() == "dispute_hold" or str(s.get("payment_id", "")).startswith("disp_") or str(s.get("status", "")).lower() == "dispute_hold"), None)
+        refund_record = next((s for s in matching_settlements if str(s.get("status", "")).lower() == "refunded" or str(s.get("type", "")).lower() == "refund" or str(s.get("payment_id", "")).startswith("rfnd_")), None)
+
+        # Primary settlement record for bank matching
+        primary_settlement = payment_record or dispute_record or (matching_settlements[0] if matching_settlements else None)
+        matched_utr = primary_settlement.get("settlement_utr") if primary_settlement else None
         bank_record = next((b for b in bank_txns if b.get("extracted_utr") == matched_utr and matched_utr != "-"), None) if matched_utr else None
 
         actual_fee_rate = 0.0
@@ -306,16 +367,40 @@ class ReconToolbox:
         gst_rate = GatewayConfig.get_gst_rate()
         mdr_threshold = contracted_mdr + 0.0005
 
-        if settlement_record:
-            amt = float(settlement_record.get("amount", 0.0))
-            fee = float(settlement_record.get("fee", 0.0))
-            tax = float(settlement_record.get("tax", 0.0))
+        if payment_record:
+            amt = float(payment_record.get("amount", 0.0))
+            fee = float(payment_record.get("fee", 0.0))
+            tax = float(payment_record.get("tax", 0.0))
             if amt > 0:
                 actual_fee_rate = (fee / amt) * 100.0
                 if actual_fee_rate > (mdr_threshold * 100.0):
                     expected_fee = amt * contracted_mdr
                     expected_tax = expected_fee * gst_rate
                     overcharge_amount = (fee + tax) - (expected_fee + expected_tax)
+
+        is_chargeback = dispute_record is not None
+        dispute_gmv = float(dispute_record.get("amount", 0.0)) if dispute_record else 0.0
+        dispute_fee = float(dispute_record.get("fee", 0.0)) if dispute_record else 0.0
+        dispute_tax = float(dispute_record.get("tax", 0.0)) if dispute_record else 0.0
+        dispute_escrow_debit = float(dispute_record.get("net_credit", 0.0)) if dispute_record else 0.0
+
+        is_refund = refund_record is not None
+        refund_amt = float(refund_record.get("amount", 0.0)) if refund_record else 0.0
+
+        is_dropped_webhook = bool(order_record and order_record.get("order_status") == "PENDING" and payment_record)
+        is_fee_overcharge = actual_fee_rate > (mdr_threshold * 100.0)
+
+        diagnosis_parts = []
+        if is_chargeback:
+            diagnosis_parts.append(f"Bank Chargeback Dispute Hold: INR {abs(dispute_escrow_debit):,.2f} debited to escrow (GMV INR {dispute_gmv:,.2f} + INR {dispute_fee+dispute_tax:,.2f} penalty fee). Submit Proof of Delivery within 7 days.")
+        if is_fee_overcharge:
+            diagnosis_parts.append(f"MDR SLA Overcharge: Billed at {actual_fee_rate:.2f}% vs contracted {contracted_mdr*100:.2f}% SLA. Recoverable: INR {overcharge_amount:,.2f}.")
+        if is_dropped_webhook:
+            diagnosis_parts.append("Dropped Webhook: Store order is PENDING while payment was captured. Fulfill order manually.")
+        if is_refund:
+            diagnosis_parts.append(f"Customer Refund: Processed refund of INR {refund_amt:,.2f}.")
+        if not diagnosis_parts:
+            diagnosis_parts.append("Transaction reconciled 100% cleanly across all 3 ledgers with zero discrepancies.")
 
         return {
             "order_id": clean_oid,
@@ -327,13 +412,13 @@ class ReconToolbox:
                 "created_at": order_record.get("created_at") if order_record else "N/A"
             },
             "razorpay_settlement_ledger": {
-                "present": bool(settlement_record),
-                "payment_id": settlement_record.get("payment_id") if settlement_record else "N/A",
-                "billed_amount": settlement_record.get("amount", 0.0) if settlement_record else 0.0,
-                "fee_charged": settlement_record.get("fee", 0.0) if settlement_record else 0.0,
-                "tax_charged": settlement_record.get("tax", 0.0) if settlement_record else 0.0,
+                "present": bool(payment_record or dispute_record),
+                "payment_id": payment_record.get("payment_id") if payment_record else (dispute_record.get("payment_id") if dispute_record else "N/A"),
+                "billed_amount": payment_record.get("amount", 0.0) if payment_record else (dispute_record.get("amount", 0.0) if dispute_record else 0.0),
+                "fee_charged": payment_record.get("fee", 0.0) if payment_record else 0.0,
+                "tax_charged": payment_record.get("tax", 0.0) if payment_record else 0.0,
                 "effective_fee_rate": f"{actual_fee_rate:.2f}%",
-                "net_credit": settlement_record.get("net_credit", 0.0) if settlement_record else 0.0,
+                "net_credit": payment_record.get("net_credit", 0.0) if payment_record else 0.0,
                 "settlement_utr": matched_utr if matched_utr else "N/A"
             },
             "bank_statement_ledger": {
@@ -343,20 +428,26 @@ class ReconToolbox:
                 "narration": bank_record.get("primary_narration") if bank_record else "N/A",
                 "matched_utr": bank_record.get("extracted_utr") if bank_record else "N/A"
             },
+            "chargeback_dispute_details": {
+                "is_chargeback_hold": is_chargeback,
+                "dispute_payment_id": dispute_record.get("payment_id") if dispute_record else None,
+                "disputed_order_amount": dispute_gmv,
+                "dispute_handling_fee": dispute_fee,
+                "dispute_gst": dispute_tax,
+                "total_penalty_fee": dispute_fee + dispute_tax,
+                "total_escrow_debit_inr": abs(dispute_escrow_debit),
+                "action_required": "Submit Proof of Delivery (AWB tracking + Invoice) within 7-day SLA window to recover held funds." if is_chargeback else "None"
+            },
             "financial_audit_diagnosis": {
-                "is_dropped_webhook": bool(order_record and order_record.get("order_status") == "PENDING" and settlement_record),
-                "is_fee_overcharge": actual_fee_rate > (mdr_threshold * 100.0),
+                "is_chargeback_hold": is_chargeback,
+                "is_dropped_webhook": is_dropped_webhook,
+                "is_fee_overcharge": is_fee_overcharge,
+                "is_orphan_refund": is_refund,
                 "contracted_sla_rate": GatewayConfig.get_sla_text(),
                 "overcharge_amount_inr": round(overcharge_amount, 2),
-                "recommended_action": (
-                    "Fulfill order manually in store (Dropped Webhook). No Razorpay dispute needed."
-                    if (order_record and order_record.get("order_status") == "PENDING")
-                    else (
-                        f"Submit dispute claim to Razorpay for ₹{round(overcharge_amount, 2)} MDR overcharge."
-                        if actual_fee_rate > (mdr_threshold * 100.0)
-                        else "Transaction reconciled 100% cleanly across all 3 ledgers."
-                    )
-                )
+                "escrow_held_amount_inr": round(abs(dispute_escrow_debit), 2) if is_chargeback else 0.0,
+                "diagnosis_summary": " | ".join(diagnosis_parts),
+                "recommended_action": diagnosis_parts[0]
             }
         }
 
@@ -380,6 +471,14 @@ class ReconToolbox:
             amount = float(s.get("amount", 0.0))
             fee = float(s.get("fee", 0.0))
             tax = float(s.get("tax", 0.0))
+            status_val = str(s.get("status", "")).lower()
+            txn_type = str(s.get("type", "")).lower()
+            pid = str(s.get("payment_id", ""))
+
+            # Exclude customer bank chargeback dispute holds and refunds from MDR fee overcharge calculations
+            if status_val == "dispute_hold" or txn_type == "dispute_hold" or pid.startswith("disp_") or status_val == "refunded" or txn_type == "refund" or pid.startswith("rfnd_"):
+                continue
+
             rate = (fee / amount) if amount > 0 else 0.0
 
             order_info = orders_by_id.get(oid)
@@ -555,4 +654,163 @@ class ReconToolbox:
             "contracted_sla_terms": GatewayConfig.get_sla_text(),
             "disputed_orders": orders_summary,
             "dispute_reason": reason
+        }
+
+    @staticmethod
+    def audit_chargeback_holds(session_data):
+        """
+        Audits all customer bank chargebacks & dispute holds (Edge Case 4).
+        Pre-formats Template 3 table with dispute IDs, fees, GST, and escrow debits.
+        """
+        settlements = session_data.get("settlements", [])
+        orders = session_data.get("orders", [])
+        orders_by_id = {o["order_id"]: o for o in orders}
+
+        if not settlements:
+            return {"status": "NO_DATA", "message": "No settlement data available."}
+
+        chargebacks_list = []
+        total_disputed_gmv = 0.0
+        total_dispute_fees = 0.0
+        total_dispute_tax = 0.0
+        total_escrow_held = 0.0
+
+        for s in settlements:
+            status_val = str(s.get("status", "")).lower()
+            txn_type = str(s.get("type", "")).lower()
+            pid = str(s.get("payment_id", ""))
+
+            if status_val == "dispute_hold" or txn_type == "dispute_hold" or pid.startswith("disp_"):
+                oid = s.get("order_id", "-")
+                amt = float(s.get("amount", 0.0))
+                fee = float(s.get("fee", 0.0))
+                tax = float(s.get("tax", 0.0))
+                net_credit = float(s.get("net_credit", 0.0))
+                utr = s.get("settlement_utr", "-")
+
+                order_info = orders_by_id.get(oid)
+                raw_dt = s.get("created_at") or (order_info.get("created_at") if order_info else "") or ""
+                date_str = str(raw_dt)[:10] if raw_dt else "-"
+
+                total_disputed_gmv += amt
+                total_dispute_fees += fee
+                total_dispute_tax += tax
+                total_escrow_held += abs(net_credit)
+
+                chargebacks_list.append({
+                    "date": date_str,
+                    "order_id": oid,
+                    "customer_name": order_info.get("customer_name") if order_info else "N/A",
+                    "payment_id": pid,
+                    "settlement_utr": utr,
+                    "disputed_order_amount": round(amt, 2),
+                    "dispute_fee": round(fee, 2),
+                    "dispute_tax": round(tax, 2),
+                    "total_penalty_fee": round(fee + tax, 2),
+                    "total_escrow_debit": round(net_credit, 2),
+                    "order_status_in_store": order_info.get("order_status") if order_info else "UNKNOWN",
+                    "payment_timestamp": raw_dt
+                })
+
+        table_lines = [
+            "| Date | Order ID | Dispute Payment ID | Settlement UTR | Disputed Order GMV (INR) | Dispute Handling Fee (INR) | GST on Fee (18%) (INR) | Total Escrow Debit (INR) |",
+            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |"
+        ]
+
+        for item in chargebacks_list:
+            table_lines.append(
+                f"| {item['date']} | {item['order_id']} | {item['payment_id']} | {item['settlement_utr']} | ₹{item['disputed_order_amount']:,.2f} | ₹{item['dispute_fee']:,.2f} | ₹{item['dispute_tax']:,.2f} | ₹{item['total_escrow_debit']:,.2f} |"
+            )
+
+        if chargebacks_list:
+            table_lines.append(
+                f"| **TOTALS** | **{len(chargebacks_list)} Disputed Orders** | - | - | **₹{total_disputed_gmv:,.2f}** | **₹{total_dispute_fees:,.2f}** | **₹{total_dispute_tax:,.2f}** | **-₹{total_escrow_held:,.2f}** |"
+            )
+        else:
+            table_lines.append("| - | No Active Chargeback Holds | - | - | ₹0.00 | ₹0.00 | ₹0.00 | ₹0.00 |")
+
+        default_table_md = "\n".join(table_lines)
+
+        defense_guidance = (
+            "Under Visa/Mastercard and RBI regulations, this amount has been placed on temporary hold following a customer-initiated bank chargeback. "
+            "If these orders were legitimately fulfilled and delivered, submit your Proof of Delivery (Courier AWB tracking & Tax Invoice) to Razorpay Merchant Support "
+            "within the 7-day SLA window to contest and recover the funds."
+        )
+
+        return {
+            "total_chargeback_orders": len(chargebacks_list),
+            "total_disputed_gmv_inr": round(total_disputed_gmv, 2),
+            "total_dispute_penalty_inr": round(total_dispute_fees + total_dispute_tax, 2),
+            "total_escrow_debit_inr": round(total_escrow_held, 2),
+            "default_table_md": default_table_md,
+            "defense_guidance": defense_guidance,
+            "chargeback_details": chargebacks_list
+        }
+
+    @staticmethod
+    def audit_tax_and_tds_deductions(session_data):
+        """
+        Audits Section 194-O TDS and GST Input Tax Credit on Gateway MDR (Template 4).
+        Dual-mode: adapts dynamically based on whether IS_TDS_APPLICABLE is enabled or disabled.
+        """
+        settlements = session_data.get("settlements", [])
+        orders = session_data.get("orders", [])
+        orders_by_id = {o["order_id"]: o for o in orders}
+
+        if not settlements:
+            return {"status": "NO_DATA", "message": "No settlement data available."}
+
+        is_tds_active = GatewayConfig.is_tds_applicable()
+        contracted_mdr = GatewayConfig.get_mdr_rate()
+        gst_rate = GatewayConfig.get_gst_rate()
+        tax_profile = GatewayConfig.get_merchant_tax_profile()
+
+        captured_settlements = [s for s in settlements if s.get("status") == "captured" and float(s.get("net_credit", 0.0)) > 0]
+
+        total_gmv = sum(float(s.get("amount", 0.0)) for s in captured_settlements)
+        total_mdr = sum(float(s.get("fee", 0.0)) for s in captured_settlements)
+        total_gst = sum(float(s.get("tax", 0.0)) for s in captured_settlements)
+        total_tds = sum(float(s.get("tds", 0.0)) for s in captured_settlements)
+
+        # Table 1: Section 194-O TDS Breakdown
+        tds_table_lines = [
+            "### 1. Section 194-O Statutory TDS Audit (Direct Income Tax)",
+            "| Metric / Parameter | Value | Statutory Regulatory Reference | Accounting Ledger Routing |",
+            "| :--- | :--- | :--- | :--- |",
+            f"| TDS Applicability Status | **{'ACTIVE (1.00% Withholding)' if is_tds_active else 'NOT APPLICABLE (0.00%)'}** | Section 194-O of Income Tax Act, 1961 | Form 26AS Tax Credit |",
+            f"| Merchant PAN Card | `{tax_profile['pan']}` | Section 206AA Verification | PAN Ledger Asset |",
+            f"| Merchant GSTIN | `{tax_profile['gstin']}` | E-Commerce Operator Mandate | Statutory Tax Profile |",
+            f"| Total Gross Sales Audited | ₹{total_gmv:,.2f} | 100% Captured Order GMV | Sales Revenue Account |",
+            f"| **Total Section 194-O TDS Withheld** | **₹{total_tds:,.2f}** | **1.00% Withheld by Gateway** | **TDS Receivable (Form 26AS Asset)** |"
+        ]
+
+        # Table 2: GST Input Tax Credit (ITC) on Payment Gateway Processing Fees
+        itc_table_lines = [
+            "### 2. GST Input Tax Credit (ITC) Statement (Indirect Tax on Gateway MDR)",
+            "| Parameter | Total Amount (INR) | GST Return Form | Claimable Input Tax Credit (ITC) |",
+            "| :--- | :--- | :--- | :--- |",
+            f"| Total Payment Gateway MDR Fees | ₹{total_mdr:,.2f} | Monthly Gateway Tax Invoice | Commercial Operating Expense |",
+            f"| **18% Input GST Paid on MDR** | **₹{total_gst:,.2f}** | **GSTR-2B Auto-Drafted / Table 4(A)(5) GSTR-3B** | **100% Eligible Input Tax Credit (₹{total_gst:,.2f})** |"
+        ]
+
+        combined_tables_md = "\n".join(tds_table_lines) + "\n\n" + "\n".join(itc_table_lines)
+
+        tds_statement = (
+            f"INR {total_tds:,.2f} withheld by Razorpay is credited against your PAN in Form 26AS as Advance Income Tax."
+            if is_tds_active and total_tds > 0
+            else "Section 194-O TDS withholding was ₹0.00 for this settlement batch (no advance tax withheld by gateway)."
+        )
+
+        return {
+            "is_tds_applicable": is_tds_active,
+            "merchant_tax_profile": tax_profile,
+            "total_gmv_inr": round(total_gmv, 2),
+            "total_mdr_fees_inr": round(total_mdr, 2),
+            "total_input_gst_itc_inr": round(total_gst, 2),
+            "total_section_194o_tds_inr": round(total_tds, 2),
+            "default_table_md": combined_tables_md,
+            "accounting_guidance": (
+                f"1. Section 194-O TDS: {tds_statement} "
+                f"2. GST Input Tax Credit: INR {total_gst:,.2f} GST paid on Razorpay MDR is 100% claimable as Input Tax Credit (ITC) in Table 4(A)(5) of monthly GSTR-3B to offset grocery sales tax liability."
+            )
         }

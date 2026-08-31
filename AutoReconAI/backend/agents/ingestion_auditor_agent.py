@@ -14,6 +14,7 @@ import json
 import requests
 import traceback
 import dotenv
+dotenv.load_dotenv()
 
 from config_loader import ModelConfig
 
@@ -87,7 +88,7 @@ class SentinelFirewallAI:
     """Agent 1: Hybrid Deterministic & Semantic Security Firewall, Scope Guardrail & Courtesy Responder."""
 
     @staticmethod
-    def inspect_query_security_and_scope(user_query: str) -> dict:
+    def inspect_query_security_and_scope(user_query: str, session_data: dict = None) -> dict:
         if not user_query or not user_query.strip():
             return {
                 "ready": True,
@@ -118,9 +119,39 @@ class SentinelFirewallAI:
                 "message": "You're very welcome! Let me know if you need to trace any transaction, calculate fee overcharges, or draft Razorpay claims."
             }
 
+        # Check for Session Data Availability on Ledger Audit Requests
+        session_data = session_data or {}
+        has_session_data = bool(
+            session_data.get("orders") or
+            session_data.get("settlements") or
+            session_data.get("bank_txns")
+        )
+
+        general_calculation_patterns = ["calculate", "how do i calculate", "formula", "18% gst on", "tax law", "definition"]
+        is_general_knowledge = any(p in clean_q for p in general_calculation_patterns)
+
+        if not has_session_data and not is_general_knowledge:
+            audit_triggers = [
+                "summary", "dispute", "overcharge", "chargeback", "tds", "itc", "mismatch", "table", "recon",
+                "order", "webhook", "refund", "utr", "money", "recover", "lost", "hold"
+            ]
+            if any(t in clean_q for t in audit_triggers):
+                return {
+                    "ready": False,
+                    "scope": "IN_SCOPE",
+                    "status": "DATA_REQUIRED",
+                    "message": "📁 **Active Reconciliation Data Required:** Please upload your Store Orders CSV (Step 1), Bank Statement (Step 2), and Razorpay Settlement CSV (Step 3) and click 'Proceed to 3-Way Reconciliation' to audit your live ledger batch."
+                }
+
         # --- LAYER 2: Semantic LLM Check ---
-        if not API_KEY:
-            return SentinelFirewallAI._heuristic_fallback(user_query)
+        api_key = os.getenv("GEMINI_API_KEY") or API_KEY
+        if not api_key:
+            return {
+                "ready": True,
+                "scope": "IN_SCOPE",
+                "status": "PASSED",
+                "message": ""
+            }
 
         payload = {
             "contents": [
@@ -155,27 +186,6 @@ class SentinelFirewallAI:
                     continue
             except Exception:
                 continue
-
-        return SentinelFirewallAI._heuristic_fallback(user_query)
-
-    @staticmethod
-    def audit_ingestion_readiness(user_query: str, session_data: dict = None) -> dict:
-        """Backward compatible entrypoint for Agent 1 pipeline integration."""
-        return SentinelFirewallAI.inspect_query_security_and_scope(user_query)
-
-    @staticmethod
-    def _heuristic_fallback(query: str) -> dict:
-        q = query.lower().strip()
-        out_of_scope_keywords = ["recipe", "iron man", "superman", "batman", "movie", "weather", "song", "joke", "capital of", "who is", "cooking", "actor", "cricket", "football", "poem", "story"]
-        finance_keywords = ["order", "payment", "recon", "fee", "dispute", "bank", "settle", "utr", "mismatch", "mdr", "gst", "db", "table", "recover", "lost", "pending", "audit", "trace", "claim", "tax", "calculate"]
-
-        if any(w in q for w in out_of_scope_keywords) and not any(f in q for f in finance_keywords):
-            return {
-                "ready": False,
-                "scope": "OUT_OF_SCOPE",
-                "status": "BLOCKED_GUARDRAIL",
-                "message": "Sorry, I can only assist with financial reconciliation, gateway fee audits, and settlement disputes."
-            }
 
         return {
             "ready": True,

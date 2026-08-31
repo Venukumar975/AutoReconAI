@@ -1,12 +1,11 @@
 """
-AutoReconAI - Agent 2: DomainReasonerAI (SentinelRouterAI)
-===========================================================
-Role: Domain Context Reasoner, Query Rewriter/Enricher, Intent Tagger & Data Dependency Evaluator.
-- Injected with domain architecture: 3 uploaded file schemas, virtual 3-way matrix join, and 3 commercial edge cases.
-- Explicitly declares required datasets in `data_requirements` for downstream gating.
-- Cleans and enriches raw user queries (fixing typos, de-noising slang, resolving pronouns from chat history) WITHOUT hallucinating unrequested actions.
-- Anti-Guessing Rule: If conversational pronouns cannot be resolved with high confidence from explicit history, preserves ambiguity.
-- Outputs structured intent, tags, confidence score, and data requirements.
+AutoReconAI - Agent 2: DomainReasonerAI
+========================================
+Role: Domain Intelligence, Contextual Memory, and Autonomous ReAct Tool Auditor.
+- Injected with domain architecture: 3 uploaded file schemas, virtual 3-way matrix join, and 5 commercial edge cases.
+- Uses tools_desc.json to dynamically declare all 10 reconciliation tools to Gemini via Native Function Calling.
+- Autonomously executes tools, gathers verified ledger records, and resolves multi-turn pronouns from memory.
+- Forwards gathered facts and tool outputs directly to Agent 3 (PrecisionSynthesizerAI) for presentation formatting.
 """
 
 import os
@@ -15,95 +14,144 @@ import json
 import requests
 import traceback
 import dotenv
+dotenv.load_dotenv()
 
+from .tools import ReconToolbox
 from config_loader import GatewayConfig, ModelConfig
 
 API_KEY = os.getenv("GEMINI_API_KEY")
 CANDIDATE_MODELS = ModelConfig.get_model_fallback_chain()
 
-DOMAIN_REASONER_SYSTEM_PROMPT = ROUTER_SYSTEM_PROMPT = """You are DomainReasonerAI (SentinelRouterAI) — the Domain Intelligence, Contextual Memory, and Intent Classification AI Agent for AutoReconAI.
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+TOOLS_DESC_PATH = os.path.join(CURRENT_DIR, "tools_desc.json")
+TOOLS_REGISTRY_STR = ""
+if os.path.exists(TOOLS_DESC_PATH):
+    try:
+        with open(TOOLS_DESC_PATH, "r", encoding="utf-8") as f:
+            TOOLS_REGISTRY_STR = f.read()
+    except Exception:
+        TOOLS_REGISTRY_STR = ""
+
+DOMAIN_REASONER_SYSTEM_PROMPT = f"""You are DomainReasonerAI (Agent 2) — the Domain Intelligence, Contextual Memory, and Autonomous ReAct Tool Execution Agent for AutoReconAI.
 
 SYSTEM DOMAIN & DATASET ARCHITECTURE:
 AutoReconAI performs automated 3-way financial reconciliation across 3 core merchant files:
+1. Store Orders Ledger (`store_orders.csv`): `order_id`, `customer_name`, `gross_amount`, `order_status` ('FULFILLED' or 'PENDING'), `created_at`.
+2. Razorpay Settlement Payout Ledger (`razorpay_settlement_recon.csv`): `settlement_id`, `settlement_utr`, `payment_id`, `order_id`, `amount`, `fee`, `tax`, `tds`, `net_credit`, `type`, `status`, `created_at`, `settled_at`.
+3. Bank Statement Ledger (`bank_statement_union_bank.pdf` / `.xlsx`): `txn_date`, `description` (narration with UTR), `extracted_utr`, `debit`, `credit`, `balance`, `is_gateway_credit`.
 
-1. FILE 1: Store Orders Ledger (`store_orders.csv`)
-   - Schema Fields: `order_id`, `customer_name`, `gross_amount`, `order_status` ('FULFILLED' or 'PENDING'), `created_at`.
-   - Role: Merchant's internal e-commerce sales ledger.
+5 CORE COMMERCIAL EDGE CASES:
+1. Dropped Webhooks: Gateway status 'captured' and settled to bank, but store order status 'PENDING'.
+2. MDR Fee Overcharges: Gateway billed MDR fee rate exceeds contracted SLA in config.ini (100% claimable from Razorpay).
+3. Orphan Customer Refunds: Settlement contains customer refund deductions; non-reversed MDR+GST is unrecoverable fee leakage.
+4. Bank Chargeback Dispute Holds: Customer raised bank dispute; Razorpay debits GMV + ₹590 dispute penalty fee. (Action: PoD within 7 days).
+5. Section 194-O Statutory TDS: 1.00% advance income tax withheld by gateway on gross sales. (Action: Form 26AS credit).
 
-2. FILE 2: Razorpay Settlement Payout Ledger (`razorpay_settlement_recon.csv`)
-   - Schema Fields: `settlement_id`, `settlement_utr`, `payment_id`, `order_id`, `amount`, `fee`, `tax`, `net_credit`, `type`, `status` ('captured'), `created_at`, `settled_at`.
-   - Role: Payment gateway transaction ledger detailing billed MDR fees and net payouts grouped by settlement UTR.
+AVAILABLE TOOL REGISTRY (from tools_desc.json):
+{TOOLS_REGISTRY_STR}
 
-3. FILE 3: Bank Statement Ledger (`bank_statement_union_bank.pdf` or `.xlsx`)
-   - Schema Fields: `txn_date`, `description` (narration with UTR), `extracted_utr`, `debit`, `credit`, `balance`, `is_gateway_credit`.
-   - Role: Verifies actual net deposits received in merchant's bank account for each settlement batch UTR.
-
-VIRTUAL 3-WAY RECONCILIATION MATRIX:
-The 3 files are joined into a unified virtual reconciliation table:
-- Bank Deposit Credit is linked to Settlement Payouts via matching `settlement_utr`.
-- Store Orders are joined with Gateway Settlements on `order_id`.
-
-3 CORE COMMERCIAL EDGE CASES:
-1. Dropped Webhooks: Gateway status 'captured' and settled to bank, but store order status 'PENDING'. (Action: fulfill manually, ₹0.00 cash claim from PG).
-2. MDR Fee Overcharges: Gateway billed MDR fee rate exceeds contracted SLA in config.ini (Action: 100% cash-recoverable claim against Razorpay).
-3. Orphan Customer Refunds: Settlement contains negative net credit entries (-₹1,200) for prior-period returns (`ORD_PRIOR_xxx`) not in current store orders. (Action: Internal ERP ledger adjustment).
-
-4. GATEWAY DATABASE:
-   - Core 'payments' table in SQLite DB (`store.db`) can be inspected for payment_id, order_id, status, settlement_utr. Merchant store tables (orders/cart) are private client data and not accessible in gateway DB.
-
-INSTRUCTIONS:
-1. Analyze the user query carefully (handling typos, slang, and abbreviations like "y r sum ordrs mismached", "wat happnd to ord 1002", "recoverable money").
-2. Classify the request into the most precise intent category:
-   * "POINT_METRIC_QUERY" -> When user asks for a specific number, single metric, or targeted amount (e.g. "what is the total recoverable money", "what is our match rate", "how much was overcharged").
-   * "SINGLE_ORDER_TRACE" -> When user asks about a specific Order ID (e.g. "what happened to ORD_1002", "why is ORD_1004 pending").
-   * "DISPUTE_CLAIM" -> When user asks to draft/prepare an official dispute ticket or chargeback claim.
-   * "COMPREHENSIVE_AUDIT" -> When user asks for a full breakdown, complete report, or executive summary of all mismatches.
-   * "GATEWAY_DB_QUERY" -> When user asks to inspect the Razorpay gateway payments database table.
-3. Extract relevant "#tags" list (e.g. ["#recoverable_amount", "#fee_overcharge", "#ord_1002", "#dropped_webhook", "#tax_calculation", "#gst_details", "#loss_recovery_check"]).
-4. Extract "extracted_entities": {"order_id": "ORD_xxxx or null", "category": "fee_overcharge | dropped_webhook | orphan_refund | null"}.
-5. Provide a clean 1-line "summary" of the request.
-6. MULTI-TURN REFERENCE RESOLUTION & ANTI-HALLUCINATION:
-   - If the user query is a follow-up, clarification, or uses pronouns/references like 'it', 'this', 'that', 'why is it', 'is this improper', resolve the target entity (such as order_id) from the RECENT CONVERSATION HISTORY.
-   - CRITICAL ANTI-HALLUCINATION RULE: If the previous interaction was a general audit summary or batch list containing multiple orders, DO NOT randomly pick an order ID from that list when the user asks a high-level question ("did I lose money?", "how much is recoverable?"). Set "order_id": null.
-
-Always respond ONLY in valid JSON matching this schema:
-{
-  "intent": "POINT_METRIC_QUERY" | "SINGLE_ORDER_TRACE" | "DISPUTE_CLAIM" | "COMPREHENSIVE_AUDIT" | "GATEWAY_DB_QUERY",
-  "tags": ["string"],
-  "extracted_entities": {
-    "order_id": "string or null",
-    "category": "fee_overcharge | dropped_webhook | orphan_refund | null"
-  },
-  "data_requirements": ["store_orders.csv" | "razorpay_settlement_recon.csv" | "bank_statement" | "gateway_db"],
-  "confidence": 0.95,
-  "missing_information": ["string"],
-  "summary": "string"
-}
+YOUR MISSION:
+1. Carefully analyze the merchant's query, considering conversation history for multi-turn context (e.g. resolving 'this order', 'in a neat table').
+2. Call the required tools autonomously to retrieve all facts, calculations, and ledger data from the active session.
+3. You can call multiple tools in sequence if the query requires joining or cross-verifying data (e.g. chargeback holds + customer details + overcharge calculations).
 """
 
-from config_loader import GatewayConfig
+TOOL_DECLARATIONS = [
+    {
+        "function_declarations": [
+            {
+                "name": "get_reconciliation_overview",
+                "description": "Calculates high-level 3-way reconciliation health metrics, GMV, total fees, GST, TDS, bank deposits, match rate (%), and Master 5-Way Mismatch Summary Table.",
+                "parameters": {"type": "OBJECT", "properties": {}}
+            },
+            {
+                "name": "calculate_fee_discrepancies",
+                "description": "Audits all captured settlement transactions against the active contracted SLA terms (from config.ini). Identifies orders billed above contracted rate.",
+                "parameters": {"type": "OBJECT", "properties": {}}
+            },
+            {
+                "name": "generate_dispute_ticket",
+                "description": "Generates a formal, ready-to-send Razorpay Merchant Dispute Claim Ticket email payload for overbilled transactions.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "order_ids": {"type": "ARRAY", "items": {"type": "STRING"}, "description": "Optional list of specific Order IDs to include."},
+                        "reason": {"type": "STRING", "description": "Dispute reason text."}
+                    }
+                }
+            },
+            {
+                "name": "audit_chargeback_holds",
+                "description": "Audits all customer bank chargeback dispute holds, disputed GMV, ₹500 fee, ₹90 GST, total escrow debit, customer name, and 7-day PoD defense guidance.",
+                "parameters": {"type": "OBJECT", "properties": {}}
+            },
+            {
+                "name": "calculate_refund_fee_leakage",
+                "description": "Calculates non-reversed payment gateway processing fee leakage on customer refunds.",
+                "parameters": {"type": "OBJECT", "properties": {}}
+            },
+            {
+                "name": "audit_tax_and_tds_deductions",
+                "description": "Performs statutory tax audit: (1) Section 194-O Income Tax TDS withholding (1.00% on gross sales, Form 26AS), and (2) 18% GST Input Tax Credit (ITC, Table 4(A)(5) GSTR-3B).",
+                "parameters": {"type": "OBJECT", "properties": {}}
+            },
+            {
+                "name": "inspect_order_lifecycle",
+                "description": "Deep 3-way forensic lifecycle trace of a specific Order ID across Store Orders, Settlements, and Bank deposit ledgers.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "order_id": {"type": "STRING", "description": "The exact Order ID to trace (e.g. 'ORD_1016')."}
+                    },
+                    "required": ["order_id"]
+                }
+            },
+            {
+                "name": "list_mismatches",
+                "description": "Lists anomalous or mismatched orders across the 3-way reconciliation pipeline filtered by category: all, fee_overcharge, dropped_webhook, orphan_refund, missing_bank_credit.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "category": {"type": "STRING", "description": "Filter by anomaly category."}
+                    }
+                }
+            },
+            {
+                "name": "query_gateway_payments_db",
+                "description": "Performs a read-only SQL query against Razorpay Payment Gateway core database (payments table in store.db).",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "filter_key": {"type": "STRING", "description": "Column: order_id, payment_id, status, settlement_utr."},
+                        "filter_value": {"type": "STRING", "description": "Value to match."}
+                    }
+                }
+            },
+            {
+                "name": "calculate_tax_breakdown",
+                "description": "Calculates standard Indian GST (18%) and total amount on a given base amount.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "base_amount": {"type": "NUMBER", "description": "Base MDR fee or transaction amount in INR."},
+                        "tax_rate_pct": {"type": "NUMBER", "description": "GST tax rate percentage (default 18.0)."}
+                    },
+                    "required": ["base_amount"]
+                }
+            }
+        ]
+    }
+]
 
 
 class DomainReasonerAI:
-    """Agent 2: Domain Intelligence, Query Enrichment, Entity Extraction & Data Dependency Evaluator."""
+    """Agent 2: Domain Reasoner & Autonomous ReAct Tool Execution Auditor."""
 
     @staticmethod
-    def classify_and_tag(user_query: str, session_data: dict = None, chat_history: list = None) -> dict:
-        if not API_KEY:
-            return DomainReasonerAI._heuristic_fallback(user_query, chat_history)
-
+    def reason_and_audit(user_query: str, session_data: dict = None, chat_history: list = None) -> dict:
         session_data = session_data or {}
-        orders_count = len(session_data.get("orders", []))
-        settlements_count = len(session_data.get("settlements", []))
-        bank_count = len(session_data.get("bank_txns", []))
-
-        ingestion_context = (
-            f"\nACTIVE SESSION DATASET STATE:\n"
-            f"- Contracted SLA Terms (from config.ini): {GatewayConfig.get_sla_text()}\n"
-            f"- Loaded Store Orders Count: {orders_count}\n"
-            f"- Loaded Settlement Records Count: {settlements_count}\n"
-            f"- Loaded Bank Transactions Count: {bank_count}\n"
-        )
+        tools_called_log = []
+        collected_tool_results = {}
 
         history_context = ""
         if chat_history:
@@ -116,96 +164,130 @@ class DomainReasonerAI:
                 history_lines.append(f"[Turn {idx}] User: \"{u_text}\" -> Assistant: \"{a_text}\"")
             history_context = "\nEXPLICIT RECENT CONVERSATION HISTORY (Last 5 Interactions):\n" + "\n".join(history_lines) + "\n"
 
-        payload = {
-            "contents": [
-                {
-                    "role": "user",
-                    "parts": [{"text": f"{DOMAIN_REASONER_SYSTEM_PROMPT}{ingestion_context}{history_context}\nRAW MERCHANT USER QUERY:\n\"{user_query}\""}]
-                }
-            ],
-            "generationConfig": {
-                "responseMimeType": "application/json"
-            }
-        }
+        initial_prompt = (
+            f"{DOMAIN_REASONER_SYSTEM_PROMPT}\n\n"
+            f"ACTIVE CONTRACTED SLA TERMS (from config.ini): {GatewayConfig.get_sla_text()}\n"
+            f"{history_context}\n"
+            f"MERCHANT USER QUERY: \"{user_query}\""
+        )
+
+        success = False
+        final_summary_text = ""
 
         for model in CANDIDATE_MODELS:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={API_KEY}"
-            try:
-                resp = requests.post(url, json=payload, timeout=25)
-                if resp.status_code == 200:
-                    text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-                    parsed = json.loads(text)
-                    return {
-                        "scope": "IN_SCOPE",
-                        "enriched_query": parsed.get("enriched_query", user_query),
-                        "intent": parsed.get("intent", "COMPREHENSIVE_AUDIT"),
-                        "tags": parsed.get("tags", []),
-                        "extracted_entities": parsed.get("extracted_entities", {}),
-                        "data_requirements": parsed.get("data_requirements", []),
-                        "confidence": float(parsed.get("confidence", 0.95)),
-                        "missing_information": parsed.get("missing_information", []),
-                        "summary": parsed.get("summary", user_query)
-                    }
-                elif resp.status_code == 429:
-                    continue
-            except Exception:
-                continue
+            conversation = [
+                {"role": "user", "parts": [{"text": initial_prompt}]}
+            ]
+            loop_tools_log = []
+            loop_results = {}
 
-        return DomainReasonerAI._heuristic_fallback(user_query, chat_history)
+            for _ in range(4):
+                payload = {
+                    "contents": conversation,
+                    "tools": TOOL_DECLARATIONS
+                }
 
-    @staticmethod
-    def _heuristic_fallback(query: str, chat_history: list = None) -> dict:
-        q = query.lower()
+                try:
+                    resp = requests.post(url, json=payload, timeout=30)
+                    if resp.status_code == 429:
+                        break
+                    if resp.status_code != 200:
+                        break
 
-        # Extract order ID directly or resolve from chat history
-        oid_match = re.search(r'\b(ord_?(?:prior_)?\d+)\b', q)
-        extracted_oid = oid_match.group(1).upper().replace("ORD", "ORD_") if oid_match else None
+                    resp_json = resp.json()
+                    candidates = resp_json.get("candidates", [])
+                    if not candidates:
+                        break
 
-        if not extracted_oid and chat_history and any(w in q for w in ["it", "this", "that", "improper", "why", "what is"]):
-            for turn in reversed(chat_history):
-                hist_text = f"{turn.get('user', '')} {turn.get('assistant', '')}".lower()
-                hist_oid_match = re.search(r'\b(ord_?(?:prior_)?\d+)\b', hist_text)
-                if hist_oid_match:
-                    extracted_oid = hist_oid_match.group(1).upper().replace("ORD", "ORD_")
+                    candidate_content = candidates[0].get("content", {})
+                    parts = candidate_content.get("parts", [])
+
+                    function_call_part = next((p for p in parts if "functionCall" in p), None)
+
+                    if function_call_part:
+                        fn_name = function_call_part["functionCall"]["name"]
+                        fn_args = function_call_part["functionCall"].get("args", {})
+
+                        # Dispatch Tool
+                        tool_output = DomainReasonerAI._dispatch_tool(fn_name, fn_args, session_data)
+                        loop_results[fn_name] = tool_output
+                        loop_tools_log.append({
+                            "tool": fn_name,
+                            "args": fn_args,
+                            "summary": f"Executed {fn_name}()"
+                        })
+
+                        # Maintain model turn
+                        conversation.append(candidate_content)
+
+                        # Append tool response
+                        conversation.append({
+                            "role": "user",
+                            "parts": [
+                                {
+                                    "functionResponse": {
+                                        "name": fn_name,
+                                        "response": tool_output
+                                    }
+                                }
+                            ]
+                        })
+                    else:
+                        final_text = parts[0].get("text", "") if parts else ""
+                        success = True
+                        final_summary_text = final_text
+                        collected_tool_results = loop_results
+                        tools_called_log = loop_tools_log
+                        break
+
+                except Exception:
                     break
 
-        intent = "COMPREHENSIVE_AUDIT"
-        tags = ["#reconciliation_audit"]
-        data_reqs = ["store_orders.csv", "razorpay_settlement_recon.csv", "bank_statement"]
-        enriched_query = query
-
-        if extracted_oid:
-            intent = "SINGLE_ORDER_TRACE"
-            tags = [f"#{extracted_oid.lower()}", "#order_trace"]
-            enriched_query = f"Inspect and trace the 3-way reconciliation lifecycle for order {extracted_oid} across Store, Gateway, and Bank statement."
-            data_reqs = ["store_orders.csv", "razorpay_settlement_recon.csv", "bank_statement"]
-        elif any(k in q for k in ["recover", "how much", "match rate", "total fee", "lost", "claimable"]):
-            intent = "POINT_METRIC_QUERY"
-            tags = ["#point_metric", "#recoverable_amount"]
-            enriched_query = "Calculate the total recoverable money and MDR fee overcharges from Razorpay."
-            data_reqs = ["razorpay_settlement_recon.csv"]
-        elif any(k in q for k in ["dispute", "ticket", "claim", "draft claim"]):
-            intent = "DISPUTE_CLAIM"
-            tags = ["#dispute_claim", "#fee_overcharge"]
-            enriched_query = "Draft an official Razorpay Merchant Dispute Claim Ticket for all detected MDR fee overcharges."
-            data_reqs = ["razorpay_settlement_recon.csv"]
-        elif any(k in q for k in ["gateway db", "payments table", "database"]):
-            intent = "GATEWAY_DB_QUERY"
-            tags = ["#gateway_db"]
-            enriched_query = "Query the Razorpay gateway payments database table."
-            data_reqs = ["gateway_db"]
+            if success:
+                break
 
         return {
             "scope": "IN_SCOPE",
-            "enriched_query": enriched_query,
-            "intent": intent,
-            "tags": tags,
-            "extracted_entities": {"order_id": extracted_oid, "category": None},
-            "data_requirements": data_reqs,
-            "confidence": 0.90,
-            "missing_information": [],
-            "summary": query
+            "status": "FACTS_GATHERED",
+            "summary": final_summary_text or "Audit facts gathered from live reconciliation ledgers.",
+            "collected_tool_data": collected_tool_results,
+            "tools_called": tools_called_log
         }
+
+    @staticmethod
+    def _dispatch_tool(fn_name: str, fn_args: dict, session_data: dict):
+        if fn_name == "get_reconciliation_overview":
+            return ReconToolbox.get_reconciliation_overview(session_data)
+        elif fn_name == "list_mismatches":
+            return ReconToolbox.list_mismatches(session_data, category=fn_args.get("category", "all"))
+        elif fn_name == "inspect_order_lifecycle":
+            return ReconToolbox.inspect_order_lifecycle(session_data, order_id=fn_args.get("order_id", ""))
+        elif fn_name == "calculate_fee_discrepancies":
+            return ReconToolbox.calculate_fee_discrepancies(session_data)
+        elif fn_name == "calculate_refund_fee_leakage":
+            return ReconToolbox.calculate_refund_fee_leakage(session_data)
+        elif fn_name == "audit_chargeback_holds":
+            return ReconToolbox.audit_chargeback_holds(session_data)
+        elif fn_name == "audit_tax_and_tds_deductions":
+            return ReconToolbox.audit_tax_and_tds_deductions(session_data)
+        elif fn_name == "query_gateway_payments_db":
+            return ReconToolbox.query_gateway_payments_db(
+                filter_key=fn_args.get("filter_key"),
+                filter_value=fn_args.get("filter_value")
+            )
+        elif fn_name == "generate_dispute_ticket":
+            return ReconToolbox.generate_dispute_ticket(
+                session_data=session_data,
+                order_ids=fn_args.get("order_ids", []),
+                reason=fn_args.get("reason", "Gateway MDR SLA Overcharge")
+            )
+        elif fn_name == "calculate_tax_breakdown":
+            return ReconToolbox.calculate_tax_breakdown(
+                base_amount=fn_args.get("base_amount", 0.0),
+                tax_rate_pct=fn_args.get("tax_rate_pct", 18.0)
+            )
+        return {"error": f"Unknown tool '{fn_name}'"}
 
 
 # Backward compatibility alias
