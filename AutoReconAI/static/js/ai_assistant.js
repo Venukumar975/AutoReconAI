@@ -210,11 +210,10 @@ const AIAssistant = (() => {
       // If blocked or out of scope: NO alert badges at all, keep it completely clean!
       if (a1.scope === 'BLOCKED' || a1.status === 'INJECTION_BLOCKED' || a2.scope === 'OUT_OF_SCOPE' || a1.scope === 'OUT_OF_SCOPE') {
         pipelineHtml = '';
-      } else if (a2.status === 'DATA_REQUIRED') {
+      } else if (a1.status === 'DATA_REQUIRED' || a2.status === 'DATA_REQUIRED') {
         pipelineHtml = `
           <div class="pipeline-badge-container">
-            <div class="agent-pill agent-pill-router">🛡️ Agent 1 (SentinelFirewallAI): Security Cleared</div>
-            <div class="agent-pill agent-pill-router">📁 Agent 2 (DomainReasonerAI): Dataset Ingestion Required</div>
+            <div class="agent-pill agent-pill-router">📁 Agent 1 (SentinelFirewallAI): Data Ingestion Required</div>
           </div>
         `;
       } else {
@@ -222,9 +221,11 @@ const AIAssistant = (() => {
 
         let toolsDetailHtml = '';
         const toolsCalled = a2.tools_called || [];
+        const dataSources = a2.data_sources || [];
+        const dataSourcesStr = dataSources.length > 0 ? dataSources.join(', ') : 'Store Orders CSV, Settlement Payouts CSV, Bank Statement';
         if (toolsCalled.length > 0) {
           const toolNames = toolsCalled.map(t => typeof t === 'object' ? `<code>${t.tool}()</code>` : `<code>${t}()</code>`).join(', ');
-          toolsDetailHtml = `<div class="agent-pill-details"><span class="pill-detail-label">⚙️ Executed Tools:</span> ${toolNames} <span class="pill-detail-sep">•</span> <span class="pill-detail-label">📁 Data Sources:</span> Store Orders CSV, Settlement Payouts CSV, Bank Statement</div>`;
+          toolsDetailHtml = `<div class="agent-pill-details"><span class="pill-detail-label">⚙️ Executed Tools:</span> ${toolNames} <span class="pill-detail-sep">•</span> <span class="pill-detail-label">📁 Data Sources:</span> ${dataSourcesStr}</div>`;
         }
 
         const a2Badge = `

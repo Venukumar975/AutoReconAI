@@ -108,7 +108,8 @@ class ReconToolbox:
         total_orphan_refund_fee_loss = 0.0
         for s in settlements:
             oid = s["order_id"]
-            if oid in orphan_refunds:
+            pid = str(s.get("payment_id", ""))
+            if oid in orphan_refunds and not pid.startswith("disp_"):
                 fee = float(s.get("fee", 0.0))
                 tax = float(s.get("tax", 0.0))
                 total_orphan_refund_fee_loss += (fee + tax)
@@ -166,16 +167,39 @@ class ReconToolbox:
 
     @staticmethod
     def calculate_refund_fee_leakage(session_data):
+        """
+        Audits voluntary customer refunds ONLY (Edge Case 3).
+        Strictly excludes bank chargeback dispute holds (disp_xxxx).
+        Distinguishes between Orphan Refunds (ORD_PRIOR_) and Same-Month Customer Refunds (ORD_xxxx).
+        """
         settlements = session_data.get("settlements", [])
         orders = session_data.get("orders", [])
         orders_by_id = {o["order_id"]: o for o in orders}
 
-        refund_entries = [
-            s for s in settlements 
-            if s.get("type") == "refund" or s.get("status") == "refunded" or float(s.get("net_credit", 0.0)) < 0
-        ]
+        refund_entries = []
+        for s in settlements:
+            status_val = str(s.get("status", "")).lower()
+            txn_type = str(s.get("type", "")).lower()
+            pid = str(s.get("payment_id", ""))
+            oid = str(s.get("order_id", ""))
+
+            # Strictly EXCLUDE bank chargeback dispute holds
+            if status_val == "dispute_hold" or txn_type == "dispute_hold" or pid.startswith("disp_"):
+                continue
+
+            # Voluntary customer refund criteria
+            if (
+                txn_type == "refund" or 
+                status_val == "refunded" or 
+                pid.startswith("rfnd_") or 
+                oid.startswith("ORD_PRIOR_") or 
+                (oid not in orders_by_id and float(s.get("net_credit", 0.0)) < 0)
+            ):
+                refund_entries.append(s)
 
         refund_details = []
+        orphan_count = 0
+        intra_period_count = 0
         total_refund_gmv = 0.0
         total_fee_leakage = 0.0
 
@@ -190,6 +214,14 @@ class ReconToolbox:
             total_refund_gmv += amt
             total_fee_leakage += unreversed_loss
 
+            is_orphan = oid.startswith("ORD_PRIOR_") or (oid not in orders_by_id)
+            if is_orphan:
+                orphan_count += 1
+                classification = "Orphan Refund (Prior Period)"
+            else:
+                intra_period_count += 1
+                classification = "Same-Month Customer Refund"
+
             order_info = orders_by_id.get(oid)
             raw_dt = r.get("created_at") or (order_info.get("created_at") if order_info else "") or ""
             date_str = str(raw_dt)[:10] if raw_dt else "-"
@@ -202,28 +234,31 @@ class ReconToolbox:
                 "retained_mdr_fee": round(fee, 2),
                 "retained_gst_tax": round(tax, 2),
                 "unreversed_fee_loss": unreversed_loss,
-                "settlement_utr": r.get("settlement_utr", "-")
+                "settlement_utr": r.get("settlement_utr", "-"),
+                "classification": classification
             })
 
         # Pre-format default_table_md for Refund Fee Loss
         refund_table_lines = [
-            "| Date | Order ID | Payment ID | Settlement UTR | Refund Amount (INR) | Retained MDR (INR) | Retained GST (18%) (INR) | Un-Reversed Cash Loss (INR) |",
-            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |"
+            "| Date | Order ID | Payment ID | Settlement UTR | Refund Amount (INR) | Retained MDR (INR) | Retained GST (18%) (INR) | Un-Reversed Cash Loss (INR) | Classification |",
+            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |"
         ]
         for rd in refund_details:
             refund_table_lines.append(
-                f"| {rd.get('date', '-')} | {rd['order_id']} | {rd['payment_id']} | {rd['settlement_utr']} | ₹{rd['refund_amount']:,.2f} | ₹{rd['retained_mdr_fee']:,.2f} | ₹{rd['retained_gst_tax']:,.2f} | ₹{rd['unreversed_fee_loss']:,.2f} |"
+                f"| {rd.get('date', '-')} | {rd['order_id']} | {rd['payment_id']} | {rd['settlement_utr']} | ₹{rd['refund_amount']:,.2f} | ₹{rd['retained_mdr_fee']:,.2f} | ₹{rd['retained_gst_tax']:,.2f} | ₹{rd['unreversed_fee_loss']:,.2f} | {rd['classification']} |"
             )
         refund_table_lines.append(
-            f"| **TOTALS** | **{len(refund_entries)} Refunds** | - | - | **₹{total_refund_gmv:,.2f}** | - | - | **₹{total_fee_leakage:,.2f}** |"
+            f"| **TOTALS** | **{len(refund_entries)} Refunds** | - | - | **₹{total_refund_gmv:,.2f}** | - | - | **₹{total_fee_leakage:,.2f}** | **{orphan_count} Orphan / {intra_period_count} Intra-Period** |"
         )
 
         return {
-            "refund_count": len(refund_entries),
+            "total_refund_entries": len(refund_entries),
+            "orphan_refund_count": orphan_count,
+            "intra_period_refund_count": intra_period_count,
             "total_refund_gmv_inr": round(total_refund_gmv, 2),
             "total_fee_leakage_inr": round(total_fee_leakage, 2),
             "claimable_from_gateway_inr": 0.00,
-            "refund_policy_note": "Razorpay transaction fees and GST are non-refundable on processed refunds.",
+            "refund_policy_note": "Razorpay transaction fees and GST are permanently non-refundable on customer-initiated refunds.",
             "default_table_md": "\n".join(refund_table_lines),
             "refund_details": refund_details
         }

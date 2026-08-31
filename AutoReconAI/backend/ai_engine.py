@@ -84,6 +84,7 @@ class AIFinanceEngine:
                     "name": "DomainReasonerAI",
                     "status": "FACTS_GATHERED",
                     "tools_called": reasoner_result.get("tools_called", []),
+                    "data_sources": reasoner_result.get("data_sources", []),
                     "summary": reasoner_result.get("summary", "")
                 },
                 "agent_3": {

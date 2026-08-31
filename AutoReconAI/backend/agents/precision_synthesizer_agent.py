@@ -175,7 +175,7 @@ class PrecisionSynthesizerAI:
                         "final_answer": clean_text,
                         "status": "SYNTHESIZED_ALIGNED"
                     }
-                elif resp.status_code == 429:
+                else:
                     continue
             except Exception:
                 continue

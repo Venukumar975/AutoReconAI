@@ -82,12 +82,12 @@ TOOL_DECLARATIONS = [
             },
             {
                 "name": "audit_chargeback_holds",
-                "description": "Audits all customer bank chargeback dispute holds, disputed GMV, ₹500 fee, ₹90 GST, total escrow debit, customer name, and 7-day PoD defense guidance.",
+                "description": "Audits customer bank chargeback dispute holds (disp_xxxx), disputed GMV in escrow, ₹500 dispute fee, ₹90 GST penalty (-₹590 debit), and 7-day Proof of Delivery defense actions to recover held funds.",
                 "parameters": {"type": "OBJECT", "properties": {}}
             },
             {
                 "name": "calculate_refund_fee_leakage",
-                "description": "Calculates non-reversed payment gateway processing fee leakage on customer refunds.",
+                "description": "Audits voluntary customer refunds ONLY. Distinguishes between (1) Orphan Refunds (ORD_PRIOR_) and (2) Same-Month Customer Refunds (ORD_xxxx). Calculates non-reversed gateway MDR + 18% GST fee leakage (which is permanently non-refundable). Strictly excludes bank dispute holds.",
                 "parameters": {"type": "OBJECT", "properties": {}}
             },
             {
@@ -143,6 +143,19 @@ TOOL_DECLARATIONS = [
     }
 ]
 
+TOOL_DATA_SOURCES = {
+    "get_reconciliation_overview": ["Store Orders CSV", "Settlement Payouts CSV", "Bank Statement PDF/XLSX"],
+    "calculate_fee_discrepancies": ["Settlement Payouts CSV", "Store Orders CSV"],
+    "generate_dispute_ticket": ["Settlement Payouts CSV"],
+    "audit_chargeback_holds": ["Settlement Payouts CSV", "Store Orders CSV"],
+    "calculate_refund_fee_leakage": ["Settlement Payouts CSV", "Store Orders CSV"],
+    "audit_tax_and_tds_deductions": ["Settlement Payouts CSV", "Merchant Tax Profile"],
+    "inspect_order_lifecycle": ["Store Orders CSV", "Settlement Payouts CSV", "Bank Statement PDF/XLSX"],
+    "list_mismatches": ["Store Orders CSV", "Settlement Payouts CSV", "Bank Statement PDF/XLSX"],
+    "query_gateway_payments_db": ["store.db (payments table)"],
+    "calculate_tax_breakdown": ["Statutory GST Formula"]
+}
+
 
 class DomainReasonerAI:
     """Agent 2: Domain Reasoner & Autonomous ReAct Tool Execution Auditor."""
@@ -190,10 +203,8 @@ class DomainReasonerAI:
 
                 try:
                     resp = requests.post(url, json=payload, timeout=30)
-                    if resp.status_code == 429:
-                        break
                     if resp.status_code != 200:
-                        break
+                        continue
 
                     resp_json = resp.json()
                     candidates = resp_json.get("candidates", [])
@@ -247,12 +258,24 @@ class DomainReasonerAI:
             if success:
                 break
 
+        # Collect distinct data sources used
+        sources_used = []
+        for t in tools_called_log:
+            fn = t.get("tool")
+            for s in TOOL_DATA_SOURCES.get(fn, []):
+                if s not in sources_used:
+                    sources_used.append(s)
+
+        if not sources_used:
+            sources_used = ["Store Orders CSV", "Settlement Payouts CSV", "Bank Statement PDF/XLSX"]
+
         return {
             "scope": "IN_SCOPE",
             "status": "FACTS_GATHERED",
             "summary": final_summary_text or "Audit facts gathered from live reconciliation ledgers.",
             "collected_tool_data": collected_tool_results,
-            "tools_called": tools_called_log
+            "tools_called": tools_called_log,
+            "data_sources": sources_used
         }
 
     @staticmethod

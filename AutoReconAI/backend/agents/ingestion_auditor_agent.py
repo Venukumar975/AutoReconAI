@@ -119,28 +119,48 @@ class SentinelFirewallAI:
                 "message": "You're very welcome! Let me know if you need to trace any transaction, calculate fee overcharges, or draft Razorpay claims."
             }
 
-        # Check for Session Data Availability on Ledger Audit Requests
+        # Check for Complete Session Data Availability on Ledger Audit Requests
         session_data = session_data or {}
-        has_session_data = bool(
-            session_data.get("orders") or
-            session_data.get("settlements") or
-            session_data.get("bank_txns")
-        )
+        has_orders = bool(session_data.get("orders"))
+        has_settlements = bool(session_data.get("settlements"))
+        has_bank = bool(session_data.get("bank_txns"))
 
-        general_calculation_patterns = ["calculate", "how do i calculate", "formula", "18% gst on", "tax law", "definition"]
+        is_db_query = any(k in clean_q for k in ["database", "payments table", "raw records in db", "query db", "show db", "sql"])
+        general_calculation_patterns = ["how do i calculate", "formula", "18% gst on", "tax law", "definition"]
         is_general_knowledge = any(p in clean_q for p in general_calculation_patterns)
 
-        if not has_session_data and not is_general_knowledge:
-            audit_triggers = [
-                "summary", "dispute", "overcharge", "chargeback", "tds", "itc", "mismatch", "table", "recon",
-                "order", "webhook", "refund", "utr", "money", "recover", "lost", "hold"
-            ]
-            if any(t in clean_q for t in audit_triggers):
+        if not is_db_query and not is_general_knowledge:
+            if not (has_orders and has_settlements and has_bank):
+                missing_files = []
+                if not has_orders:
+                    missing_files.append("1. **Store Orders CSV** (Step 1)")
+                if not has_bank:
+                    missing_files.append("2. **Bank Statement PDF/Excel** (Step 2)")
+                if not has_settlements:
+                    missing_files.append("3. **Razorpay Settlement CSV** (Step 3)")
+
+                if len(missing_files) == 3:
+                    msg = (
+                        "📁 **Active Reconciliation Data Required:** No reconciliation files are currently loaded.\n\n"
+                        "Please upload all 3 ledgers:\n"
+                        "1. **Store Orders CSV** (Step 1)\n"
+                        "2. **Bank Statement PDF/Excel** (Step 2)\n"
+                        "3. **Razorpay Settlement CSV** (Step 3)\n\n"
+                        "and click **'Proceed to 3-Way Reconciliation'** to audit your financial transactions."
+                    )
+                else:
+                    missing_str = "\n".join(missing_files)
+                    msg = (
+                        f"⚠️ **Incomplete Reconciliation Session Data:**\n\n"
+                        f"The following required ledgers are missing:\n{missing_str}\n\n"
+                        f"Please complete all 3 upload steps and click **'Proceed to 3-Way Reconciliation'** to perform an accurate 3-way audit."
+                    )
+
                 return {
                     "ready": False,
                     "scope": "IN_SCOPE",
                     "status": "DATA_REQUIRED",
-                    "message": "📁 **Active Reconciliation Data Required:** Please upload your Store Orders CSV (Step 1), Bank Statement (Step 2), and Razorpay Settlement CSV (Step 3) and click 'Proceed to 3-Way Reconciliation' to audit your live ledger batch."
+                    "message": msg
                 }
 
         # --- LAYER 2: Semantic LLM Check ---
