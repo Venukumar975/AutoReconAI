@@ -264,6 +264,22 @@ const AIAssistant = (() => {
       </div>
     `;
     chatFeed.appendChild(div);
+    
+    // Automatically render any Mermaid diagrams
+    if (window.mermaid && div.querySelector('.mermaid')) {
+      setTimeout(() => {
+        try {
+          mermaid.run({ nodes: div.querySelectorAll('.mermaid') });
+        } catch (err) {
+          try {
+            mermaid.init(undefined, div.querySelectorAll('.mermaid'));
+          } catch (e2) {
+            console.warn('Mermaid render warning:', e2);
+          }
+        }
+      }, 50);
+    }
+
     scrollToBottom();
   }
 
@@ -315,8 +331,25 @@ const AIAssistant = (() => {
   function formatMarkdown(text) {
     if (!text) return "";
 
-    // Parse Markdown tables
-    const lines = text.split('\n');
+    const mermaidBlocks = [];
+    const codeBlocks = [];
+
+    // 1. Stash Mermaid blocks
+    let processed = text.replace(/```mermaid([\s\S]*?)```/gi, (match, code) => {
+      const id = mermaidBlocks.length;
+      mermaidBlocks.push(code.trim());
+      return `\n\n@@MERMAID_${id}@@\n\n`;
+    });
+
+    // 2. Stash other code blocks
+    processed = processed.replace(/```(?:text|plain)?([\s\S]*?)```/gi, (match, code) => {
+      const id = codeBlocks.length;
+      codeBlocks.push(code.trim());
+      return `\n\n@@CODE_${id}@@\n\n`;
+    });
+
+    // 3. Parse Markdown tables
+    const lines = processed.split('\n');
     let inTable = false;
     let tableHtml = '';
     let processedLines = [];
@@ -368,7 +401,24 @@ const AIAssistant = (() => {
     joined = joined.replace(/\n\n/g, '<br/><br/>');
     joined = joined.replace(/\n/g, '<br/>');
 
-    return formatInline(joined);
+    joined = formatInline(joined);
+
+    // 4. Restore code blocks & Mermaid blocks cleanly without any <br> contamination
+    codeBlocks.forEach((code, i) => {
+      const html = `<pre style="background: #0f172a; color: #f8fafc; padding: 12px 14px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; overflow-x: auto; margin: 10px 0; line-height: 1.45;">${code}</pre>`;
+      joined = joined.replace(new RegExp(`@@CODE_${i}@@`, 'g'), html);
+    });
+
+    mermaidBlocks.forEach((code, i) => {
+      const html = `<div class="mermaid-wrapper" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 12px 0; overflow-x: auto; box-shadow: 0 1px 3px rgba(0,0,0,0.05); text-align: center;"><pre class="mermaid" style="margin: 0; font-family: sans-serif;">${code}</pre></div>`;
+      joined = joined.replace(new RegExp(`@@MERMAID_${i}@@`, 'g'), html);
+    });
+
+    // Clean up extraneous breaks around HTML chart/div tags
+    joined = joined.replace(/<br\s*[\/]?>\s*(<div class="mermaid-wrapper"|<pre)/gi, '$1');
+    joined = joined.replace(/(<\/div>|<\/pre>)\s*<br\s*[\/]?>/gi, '$1');
+
+    return joined;
   }
 
   function formatInline(str) {

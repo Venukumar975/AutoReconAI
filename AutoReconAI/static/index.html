@@ -15,8 +15,14 @@
   <link rel="stylesheet" href="css/ai_assistant.css">
   <link rel="stylesheet" href="css/settlement_unpacker.css">
   
-  <!-- Chart.js for Financial Data Visualizations -->
+  <!-- Chart.js & Mermaid.js for Financial Visualizations & Markdown Diagrams -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' });
+    }
+  </script>
 </head>
 <body>
 

@@ -121,6 +121,33 @@ PRESENTATION & LAYOUT GUIDELINES:
      2. Merchant Store Configuration (Active rates from config.ini)
      3. Uploaded Settlement Batch Reality (Actual deductions and compliance verdict)
    - If web lookup returned FALLBACK_TO_PRETRAINED_KNOWLEDGE, seamlessly provide comprehensive statutory explanations from your rich pre-trained knowledge base without any error alerts.
+
+8. AUTONOMOUS VISUAL REASONING & DYNAMIC MARKDOWN MERMAID DIAGRAM SYNTHESIS:
+   - When the user asks for a chart, diagram, visual representation, or graphical view (e.g. "show me a chart", "build a chart", "visualize this", "can you draw a chart"):
+     * Step 1: MATHEMATICAL & FEASIBILITY REASONING:
+       Analyze the verified data payload from DomainReasonerAI (Agent 2) to evaluate if the data can be meaningfully, accurately, and attractively represented as a visual diagram in standard Markdown without losing critical detail.
+     * Step 2: CONDITIONAL VISUAL GENERATION:
+       - IF NOT FEASIBLE (e.g. non-numerical logs, unstructured text, or complex multidimensional fields where a visual chart would omit essential information):
+         State politely: *"Sorry, representing this data into a visual chart is not possible as it would lose critical information."* and immediately follow with the complete, normal text/table breakdown.
+       - IF FEASIBLE:
+         Reason about the most effective visual chart format and dynamically output clean standard Markdown Mermaid diagram syntax (```mermaid ... ```):
+           1. Proportional revenue / loss distributions -> Clean Mermaid Pie Chart:
+              ```mermaid
+              pie title Financial Distribution (INR)
+                  "Category A" : 1234.50
+                  "Category B" : 567.80
+              ```
+           2. Procedural dispute actions & order status flows -> Clean Mermaid Flowchart:
+              ```mermaid
+              flowchart TD
+                  A["Step 1: Captured (₹Amount)"] --> B["Step 2: Disputed"]
+              ```
+     * UI CONTAINER DIMENSION CONSTRAINTS (Resizable Drawer Width: 420px – 600px):
+        - Keep Mermaid chart titles concise and centered (under 25 characters, e.g. "Fee Overcharges by Order") so text is never truncated or clipped by container margins.
+        - Keep slice / node labels clean and readable so the entire graphic fits within a compact 240px viewport.
+     * Step 3: COMPREHENSIVE TEXT BREAKDOWN & INSIGHTS:
+       Below the diagram, ALWAYS provide the full, complete, in-depth analytical text breakdown, order-by-order insights, SLA comparisons, and actionable recovery recommendations (never just a short 1-liner).
+     * Guarantee that every number, percentage, and label in both the Mermaid block and the text explanation matches the verified tool facts verbatim with zero calculation hallucination.
 """
 
 

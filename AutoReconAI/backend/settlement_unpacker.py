@@ -139,7 +139,7 @@ class SettlementUnpackerEngine:
         non_recoverable_loss_pct = round((total_non_recoverable_refund_loss / total_settlement_volume) * 100, 2)
         net_payout_pct = round(100.0 - (mdr_fee_pct + gst_itc_pct + refunds_pct + non_recoverable_loss_pct), 2)
 
-        # Call Agent 5: TaxOptimizerAI for dynamic generative executive insights & FAQs
+        # Call Agent 4: TaxOptimizerAI for dynamic generative executive insights & FAQs
         from agents.tax_optimizer_agent import TaxOptimizerAI
         unpacked_facts = {
             "total_gmv": round(total_gmv, 2),
