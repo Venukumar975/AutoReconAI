@@ -149,22 +149,22 @@ class ModelConfig:
 
     @staticmethod
     def get_primary_model() -> str:
-        """Returns primary Gemini model from ai_models.ini or environment variable."""
+        """Returns current active Gemini model from ai_models.ini or environment variable."""
         env_model = os.getenv("GEMINI_MODEL")
         if env_model:
             return env_model.strip()
 
         config = load_model_config()
         try:
-            return config.get("GEMINI_MODELS", "primary_model", fallback="gemini-3.6-flash").strip()
+            return config.get("GEMINI_MODELS", "current_model", fallback=config.get("GEMINI_MODELS", "primary_model", fallback="gemini-3.5-flash-lite")).strip()
         except Exception:
-            return "gemini-3.6-flash"
+            return "gemini-3.5-flash-lite"
 
     @staticmethod
     def get_model_fallback_chain() -> list:
         """
         Returns an ordered list of Gemini model candidates.
-        Ensures zero-downtime automatic fallback if any model name is sunset or rate-limited.
+        Ensures zero-downtime automatic fallback across independent RPM rate-limit buckets.
         """
         candidates = []
 
@@ -181,7 +181,7 @@ class ModelConfig:
                     candidates.append(clean_val)
 
         # 2. Hardcoded resilient default fallbacks
-        defaults = ["gemini-3.6-flash", "gemini-1.5-flash", "gemini-2.5-pro", "gemini-1.5-pro", "gemini-pro"]
+        defaults = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-3.5-flash", "gemini-3.7-flash", "gemini-3.6-flash"]
         for d in defaults:
             if d not in candidates:
                 candidates.append(d)
