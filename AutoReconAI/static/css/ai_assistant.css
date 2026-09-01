@@ -753,21 +753,78 @@ body.ai-drawer-open .main-wrapper {
 }
 
 /* ==========================================================================
-   Responsive Mermaid Diagram & Chart Scaling for Resizable AI Drawer
+   Interactive Diagram Container & Pan-Zoom Toolbar
    ========================================================================== */
-.mermaid-wrapper {
+.mermaid-container {
+  position: relative;
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 16px 24px;
+  border-radius: 10px;
   margin: 12px 0;
-  overflow: visible;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.diagram-toolbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(6px);
+  padding: 3px 5px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.btn-diag-ctrl {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.btn-diag-ctrl:hover {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+  transform: translateY(-1px);
+}
+
+.btn-diag-ctrl:active {
+  transform: translateY(0);
+}
+
+.mermaid-wrapper {
+  padding: 18px 24px;
+  min-height: 180px;
+  max-height: 280px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
   display: flex;
   justify-content: center;
   align-items: center;
-  width: 100%;
-  box-sizing: border-box;
+  cursor: grab;
+  user-select: none;
+}
+
+.mermaid-wrapper.is-panning {
+  cursor: grabbing !important;
 }
 
 .mermaid-wrapper pre.mermaid,
@@ -778,7 +835,6 @@ body.ai-drawer-open .main-wrapper {
   justify-content: center;
   align-items: center;
   width: 100%;
-  overflow: visible !important;
 }
 
 .mermaid-wrapper svg {
@@ -788,5 +844,7 @@ body.ai-drawer-open .main-wrapper {
   width: auto !important;
   margin: 0 auto !important;
   display: block !important;
-  overflow: visible !important;
+  transform-origin: center center;
+  transition: transform 0.05s ease-out;
+  pointer-events: none;
 }

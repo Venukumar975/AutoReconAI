@@ -265,14 +265,20 @@ const AIAssistant = (() => {
     `;
     chatFeed.appendChild(div);
     
-    // Automatically render any Mermaid diagrams
+    // Automatically render any Mermaid diagrams and bind Pan & Zoom controls
     if (window.mermaid && div.querySelector('.mermaid')) {
       setTimeout(() => {
         try {
-          mermaid.run({ nodes: div.querySelectorAll('.mermaid') });
+          const promise = mermaid.run({ nodes: div.querySelectorAll('.mermaid') });
+          if (promise && typeof promise.then === 'function') {
+            promise.then(() => initDiagramPanZoom(div)).catch(() => initDiagramPanZoom(div));
+          } else {
+            initDiagramPanZoom(div);
+          }
         } catch (err) {
           try {
             mermaid.init(undefined, div.querySelectorAll('.mermaid'));
+            initDiagramPanZoom(div);
           } catch (e2) {
             console.warn('Mermaid render warning:', e2);
           }
@@ -410,12 +416,23 @@ const AIAssistant = (() => {
     });
 
     mermaidBlocks.forEach((code, i) => {
-      const html = `<div class="mermaid-wrapper" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 12px 0; overflow-x: auto; box-shadow: 0 1px 3px rgba(0,0,0,0.05); text-align: center;"><pre class="mermaid" style="margin: 0; font-family: sans-serif;">${code}</pre></div>`;
+      const html = `
+        <div class="mermaid-container">
+          <div class="diagram-toolbar">
+            <button class="btn-diag-ctrl" data-act="zoom-in" title="Zoom In (or Scroll Wheel)">➕</button>
+            <button class="btn-diag-ctrl" data-act="zoom-out" title="Zoom Out">➖</button>
+            <button class="btn-diag-ctrl" data-act="reset" title="Reset Zoom">↺</button>
+          </div>
+          <div class="mermaid-wrapper">
+            <pre class="mermaid" style="margin: 0; font-family: sans-serif;">${code}</pre>
+          </div>
+        </div>
+      `;
       joined = joined.replace(new RegExp(`@@MERMAID_${i}@@`, 'g'), html);
     });
 
     // Clean up extraneous breaks around HTML chart/div tags
-    joined = joined.replace(/<br\s*[\/]?>\s*(<div class="mermaid-wrapper"|<pre)/gi, '$1');
+    joined = joined.replace(/<br\s*[\/]?>\s*(<div class="mermaid-container"|<div class="mermaid-wrapper"|<pre)/gi, '$1');
     joined = joined.replace(/(<\/div>|<\/pre>)\s*<br\s*[\/]?>/gi, '$1');
 
     return joined;
@@ -426,6 +443,80 @@ const AIAssistant = (() => {
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       .replace(/`([^`]+)`/g, '<code>$1</code>');
+  }
+
+  function initDiagramPanZoom(containerEl) {
+    const containers = containerEl.querySelectorAll('.mermaid-container');
+    containers.forEach(container => {
+      const wrapper = container.querySelector('.mermaid-wrapper');
+      const svg = wrapper ? wrapper.querySelector('svg') : null;
+      if (!wrapper || !svg) return;
+
+      let scale = 1.0;
+      let tx = 0;
+      let ty = 0;
+      let isDragging = false;
+      let startX = 0;
+      let startY = 0;
+
+      function updateTransform() {
+        svg.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+      }
+
+      // Toolbar Buttons
+      const btnIn = container.querySelector('[data-act="zoom-in"]');
+      const btnOut = container.querySelector('[data-act="zoom-out"]');
+      const btnReset = container.querySelector('[data-act="reset"]');
+
+      if (btnIn) {
+        btnIn.onclick = (e) => {
+          e.stopPropagation();
+          scale = Math.min(scale * 1.25, 3.5);
+          updateTransform();
+        };
+      }
+
+      if (btnOut) {
+        btnOut.onclick = (e) => {
+          e.stopPropagation();
+          scale = Math.max(scale / 1.25, 0.4);
+          updateTransform();
+        };
+      }
+
+      if (btnReset) {
+        btnReset.onclick = (e) => {
+          e.stopPropagation();
+          scale = 1.0;
+          tx = 0;
+          ty = 0;
+          updateTransform();
+        };
+      }
+
+      // Mouse Drag / Pan (Hand Tool - Click and Drag)
+      wrapper.onmousedown = (e) => {
+        if (e.target.closest('.diagram-toolbar')) return;
+        isDragging = true;
+        startX = e.clientX - tx;
+        startY = e.clientY - ty;
+        wrapper.classList.add('is-panning');
+      };
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        tx = e.clientX - startX;
+        ty = e.clientY - startY;
+        updateTransform();
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (isDragging) {
+          isDragging = false;
+          wrapper.classList.remove('is-panning');
+        }
+      });
+    });
   }
 
   function copyToClipboard(text) {

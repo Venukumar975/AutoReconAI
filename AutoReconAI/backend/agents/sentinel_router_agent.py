@@ -57,6 +57,7 @@ YOUR MISSION:
 1. Carefully analyze the merchant's query, considering conversation history for multi-turn context (e.g. resolving 'this order', 'in a neat table').
 2. Call the required tools autonomously to retrieve all facts, calculations, and ledger data from the active session.
 3. You can call multiple tools in sequence if the query requires joining or cross-verifying data (e.g. chargeback holds + customer details + overcharge calculations).
+4. FOCUS STRICTLY ON FACTUAL DATA RETRIEVAL: Completely ignore visual or presentation directives (such as 'build a chart', 'draw a diagram', 'make a table', 'in a paragraph') — your sole responsibility is executing the appropriate tools to collect raw verified facts. Downstream diagram and layout synthesis is handled exclusively by Agent 3.
 """
 
 # Single Source of Truth: Build TOOL_DECLARATIONS & TOOL_DATA_SOURCES directly from tools_desc.json

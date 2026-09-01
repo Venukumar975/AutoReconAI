@@ -131,23 +131,47 @@ PRESENTATION & LAYOUT GUIDELINES:
          State politely: *"Sorry, representing this data into a visual chart is not possible as it would lose critical information."* and immediately follow with the complete, normal text/table breakdown.
        - IF FEASIBLE:
          Reason about the most effective visual chart format and dynamically output clean standard Markdown Mermaid diagram syntax (```mermaid ... ```):
-           1. Proportional revenue / loss distributions -> Clean Mermaid Pie Chart:
-              ```mermaid
-              pie title Financial Distribution (INR)
-                  "Category A" : 1234.50
-                  "Category B" : 567.80
-              ```
-           2. Procedural dispute actions & order status flows -> Clean Mermaid Flowchart:
-              ```mermaid
-              flowchart TD
-                  A["Step 1: Captured (₹Amount)"] --> B["Step 2: Disputed"]
-              ```
+            1. Proportional revenue / loss distributions -> Clean Mermaid Pie Chart:
+               ```mermaid
+               pie title Financial Distribution (INR)
+                   "Category A" : 1234.50
+                   "Category B" : 567.80
+               ```
+            2. Procedural dispute actions & order status flows -> Clean Mermaid Flowchart:
+               ```mermaid
+               flowchart TD
+                   stepA["🛒 Step 1: Customer Order (₹Amount)"] --> stepB["🔒 Step 2: Escrow Hold Raised"]
+                   stepB --> stepC{"Store Status?"}
+                   stepC -->|"FULFILLED"| stepD["📄 Submit Courier AWB & Invoice"]
+                   stepD --> stepE["✅ Escrow Balance Released"]
+               ```
+            3. Comparative order rankings / SLA fee comparisons -> Robust Mermaid Flowchart LR / Subgraph:
+               ```mermaid
+               flowchart LR
+                   subgraph Overbilled ["Billed Orders vs. Contracted SLA (2.60%)"]
+                       direction TB
+                       o1["ORD_1036: 3.02% (Markup: +42 bps | ₹25.61)"]
+                       o2["ORD_1016: 2.98% (Markup: +38 bps | ₹7.47)"]
+                       o3["ORD_1032: 2.92% (Markup: +32 bps | ₹3.39)"]
+                       o4["ORD_1045: 2.92% (Markup: +32 bps | ₹4.13)"]
+                       o5["ORD_1019: 2.71% (Markup: +11 bps | ₹17.31)"]
+                   end
+                   Overbilled --> SLA["Contracted Baseline: 2.60%"]
+               ```
+      * STRICT MERMAID GRAMMAR & SYNTAX RULES (ZERO CRASH GUARANTEE):
+         - Use ONLY supported Mermaid keywords (`pie`, `flowchart TD`, `flowchart LR`, `graph TD`). NEVER use experimental keywords like `xychart-beta`, `barchart`, or `quadrant`.
+         - NEVER use unquoted parentheses or rupee symbols inside brackets. ALWAYS enclose node text in double quotes: `nodeId["Text with (₹Amount)"]`.
+         - Use simple alphanumeric node IDs (`stepA`, `stepB`, `node1`, `o1`).
+         - For labeled decision arrows, use `-->|"Decision Label"|` syntax.
      * UI CONTAINER DIMENSION CONSTRAINTS (Resizable Drawer Width: 420px – 600px):
         - Keep Mermaid chart titles concise and centered (under 25 characters, e.g. "Fee Overcharges by Order") so text is never truncated or clipped by container margins.
         - Keep slice / node labels clean and readable so the entire graphic fits within a compact 240px viewport.
-     * Step 3: COMPREHENSIVE TEXT BREAKDOWN & INSIGHTS:
-       Below the diagram, ALWAYS provide the full, complete, in-depth analytical text breakdown, order-by-order insights, SLA comparisons, and actionable recovery recommendations (never just a short 1-liner).
-     * Guarantee that every number, percentage, and label in both the Mermaid block and the text explanation matches the verified tool facts verbatim with zero calculation hallucination.
+      * MANDATORY VISUAL-TO-DATA CROSS-CHECK AUDIT (ZERO HALLUCINATION):
+         - Before finalizing any response, systematically cross-check every single entity, percentage, order ID, and rupee amount in the visual diagram against the raw verified facts payload from DomainReasonerAI (Agent 2).
+         - Ensure 100% mathematical alignment: Every number rendered in pie slices, flowchart nodes, or graph labels MUST match the raw database facts and ledger tables verbatim down to the exact paise. Never fabricate, estimate, or extrapolate numerical values.
+      * Step 3: COMPREHENSIVE TEXT BREAKDOWN & INSIGHTS:
+        Below the diagram, ALWAYS provide the full, complete, in-depth analytical text breakdown, order-by-order insights, SLA comparisons, and actionable recovery recommendations (never just a short 1-liner).
+      * Guarantee that every number, percentage, and label in both the Mermaid block and the text explanation matches the verified tool facts verbatim with zero calculation hallucination.
 """
 
 

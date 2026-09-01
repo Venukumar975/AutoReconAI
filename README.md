@@ -84,7 +84,7 @@ Unlike basic projects that use static mock CSVs or simple random scripts, AutoRe
 #### 3. 🤖 Specialized Multi-Agent AI Framework
 - **Agent 1 (`SentinelFirewallAI`):** Deterministic & semantic security guardrail blocking prompt injections, SQL tampering, and out-of-scope non-financial queries.
 - **Agent 2 (`DomainReasonerAI`):** Autonomous **ReAct (Reason + Act)** auditing agent. It **Reasons** over the user query & 5-turn memory, then **Acts** by calling deterministic Python calculation tools (`ReconToolbox`) grounded directly in the authentic ledgers (`store_orders.csv`, `razorpay_settlement_recon.csv`, bank statements, and `store.db`). This data-grounded execution completely eliminates LLM arithmetic hallucinations.
-- **Agent 3 (`PrecisionSynthesizerAI`):** Pure presentation formatter enforcing zero boilerplate and verbatim mathematical immutability.
+- **Agent 3 (`PrecisionSynthesizerAI`):** Autonomous presentation & visualization synthesizer. Formats zero-boilerplate Markdown tables, ready-to-send dispute tickets, and dynamically generates **interactive Mermaid diagrams (Pie charts, Procedural Flowcharts, Comparative Subgraphs)** with mandatory visual-to-data cross-checking for 100% zero-hallucination accuracy.
 - **Agent 4 (`TaxOptimizerAI`):** Dedicated executive tax strategist generating Section 16 CGST Input Tax Credit (ITC) advice and take-rate analytics.
 
 ---
@@ -464,9 +464,14 @@ flowchart TD
    - **⚙️ Act (Autonomous Deterministic Execution):** Instead of guessing or calculating arithmetic internally, it invokes Python calculation tools from [`ReconToolbox`](./AutoReconAI/backend/agents/tools.py) via native function calling declared in [`tools_desc.json`](./AutoReconAI/backend/agents/tools_desc.json).
    - **🛡️ Data Grounding & Zero Hallucination:** The tools query authentic data sources (`store_orders.csv`, `razorpay_settlement_recon.csv`, bank statements, and `store.db`) as the absolute single source of truth. Agent 2 forwards a 100% verified arithmetic JSON payload to Agent 3.
 
-3. **Agent 3 (`PrecisionSynthesizerAI` - Presentation & Formatting Engine):**
-   - Pure presentation formatter. Takes the verified fact payload from Agent 2 and formats clean Markdown tables, email dispute claim tickets, or statutory tax statements.
-   - Enforces **Zero Boilerplate** (no repetitive introductory chatter) and **Mathematical Immutability** (numbers are strictly preserved verbatim from tool payloads).
+3. **Agent 3 (`PrecisionSynthesizerAI` - Presentation, Visualization & Formatting Engine):**
+   - **Autonomous Visual Reasoning & Dynamic Markdown Mermaid Synthesis:** When visual intent is detected, Agent 3 evaluates the mathematical shape of the data and dynamically synthesizes responsive Mermaid diagrams:
+     - 🥧 **Proportional Distribution (Pie Charts):** Visualizes dispute hold shares, fee overcharge percentages, and macro cash flows.
+     - 🔀 **Procedural Lifecycles (Flowcharts `flowchart TD`):** Step-by-step decision trees for dropped webhook store sync and 7-day chargeback defense workflows.
+     - 📊 **Comparative Subgraph Mappings (`flowchart LR`):** Order-wise effective rate markups against the 2.60% contracted SLA baseline.
+   - **Mandatory Visual-to-Data Cross-Check Audit (Zero Hallucination):** Systematically audits diagram labels, percentages, and slice values against Agent 2's raw verified facts payload before delivering output, guaranteeing 100% mathematical consistency down to the exact paise.
+   - **Interactive Pan & Zoom Diagram Viewer:** Renders inside a specialized UI container equipped with a floating toolbar (➕ Zoom In, ➖ Zoom Out, ↺ Reset) and click-and-drag hand panning isolated to the diagram card.
+   - **Zero Boilerplate & Mathematical Immutability:** Enforces concise, direct answers with comprehensive itemized ledger tables and actionable recovery recommendations.
 
 4. **Agent 4 (`TaxOptimizerAI` - Corporate Tax Strategist):**
    - Specialized executive financial advisor. Analyzes verified settlement metrics to compute Section 16 CGST Input Tax Credit (ITC) eligibility for GSTR-3B filings, take-rate evaluations, and operational recovery actions.
