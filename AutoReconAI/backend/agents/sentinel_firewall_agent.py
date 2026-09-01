@@ -1,7 +1,7 @@
 """
-AutoReconAI - Agent 1: SentinelFirewallAI (IngestionAuditorAI)
-===============================================================
-Role: First-line Security Firewall, Scope Guardrail & Courtesy AI Agent powered by Gemini.
+AutoReconAI - SentinelFirewallAI (Security Guardrail & Gatekeeper)
+==================================================================
+Role: Pre-Execution Security Firewall, Scope Guardrail & Courtesy Gatekeeper powered by Gemini.
 - Layer 1 (Deterministic): Fast Regex checks for known prompt injections, SQL tampering, and instruction overrides.
 - Layer 2 (Semantic LLM): Semantic jailbreak defense and domain boundary evaluation.
 - Semantic Scope: Evaluates whether the query's primary objective relates to financial data, reconciliation, transactions, fees, GST, or gateway workflows.

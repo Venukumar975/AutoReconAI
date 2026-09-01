@@ -14,8 +14,8 @@ from collections import deque
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, CURRENT_DIR)
 
-from agents.ingestion_auditor_agent import SentinelFirewallAI
-from agents.sentinel_router_agent import DomainReasonerAI
+from agents.sentinel_firewall_agent import SentinelFirewallAI
+from agents.domain_reasoner_agent import DomainReasonerAI
 from agents.precision_synthesizer_agent import PrecisionSynthesizerAI
 from agents.tools import ReconToolbox
 
