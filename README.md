@@ -1,4 +1,4 @@
-﻿# ⚡ AutoReconAI - Multi-Agent Payment Gateway & 3-Way Financial Reconciliation Hub
+# ⚡ AutoReconAI - Multi-Agent Payment Gateway & 3-Way Financial Reconciliation Hub
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Flask-3.0%2B-lightgrey.svg)](https://flask.palletsprojects.com/)
@@ -25,7 +25,7 @@
 3. [System Architecture & Port Map](#-system-architecture--port-map)
 4. [Prerequisites & Quick Setup](#-prerequisites--quick-setup)
 5. [Configuring AI Models (`ai_models.ini`) & Fallback Chain](#-configuring-ai-models-ai_modelsini--fallback-chain)
-6. [The 2-System Realistic Simulation Engine](#-the-2-system-realistic-simulation-engine)
+6. [Realistic Data & Edge Case Simulation Pipeline](#-realistic-data--edge-case-simulation-pipeline)
 7. [The 5 Critical Commercial Edge Cases](#-the-5-critical-commercial-edge-cases)
 8. [Data Ingestion & 3-Way Reconciliation Matrix](#-data-ingestion--3-way-reconciliation-matrix)
 9. [Important: Config Change & Cache Reset Lifecycle](#-important-config-change--cache-reset-lifecycle)
@@ -38,20 +38,51 @@
 
 ## 🎯 Project Overview & Core Problem
 
-In high-volume e-commerce, money moves across **three disparate, asynchronous systems** before reaching the merchant:
-1. **The Merchant Storefront** (`store_orders.csv` / `store.db`): Records gross sales bills, itemized shopping carts, and order statuses.
+In high-volume e-commerce, money moves across **three disparate, asynchronous systems** before reaching the merchant's bank account:
+1. **The Merchant Storefront** (`store_orders.csv` / `store.db`): Records gross sales bills, itemized shopping carts, and order statuses (`FULFILLED` / `PENDING`).
 2. **The Payment Gateway Engine** (`razorpay_settlement_recon.csv`): Deducts Merchant Discount Rate (MDR) processing fees, 18% GST, and statutory TDS before bundling payouts into daily settlement batches.
 3. **The Commercial Bank Statement** (`bank_statement_*.pdf` / `.xlsx`): Receives lumped payout deposits alongside operating expenses (rent, utilities, vendor transfers).
 
-### 🚨 The Industry Problem:
-Traditional reconciliation tools rely on static spreadsheets or brittle rule engines. When real-world commercial edge cases occur—such as **dropped webhooks, interchange fee overcharges, prior-period orphan returns, bank chargebacks, or Section 194-O TDS deductions**—finance teams waste hundreds of hours manually reconciling ledgers. Furthermore, generic LLMs hallucinate numbers when asked to audit financial data.
+---
 
-### 💡 The Solution:
-**AutoReconAI** bridges this gap by combining:
-- A **Realistic 2-System Simulation Pipeline** that generates authentic merchant-gateway data with non-Razorpay bank expenses and injected edge cases.
-- An **Interactive 3-Way Reconciliation Matrix** that detects tables in PDF/Excel statements and maps transactions by daily UTR batches.
-- A **4-Agent Multi-Agent AI Controller** where isolated agents execute deterministic, math-grounded tools to guarantee **100% mathematical immutability and zero data hallucination**.
-- A **Data Analysis & Insights Hub** providing visual take-rate allocation charts and GSTR-3B Input Tax Credit (ITC) tax compliance guidance.
+### 🚨 The Industry Problem
+
+Modern finance and accounting teams in e-commerce face critical challenges during month-end reconciliation:
+- **Asynchronous Data Silos:** Transactions are recorded at different timestamps, under different IDs, and across incompatible formats (CSV, PDF, XLSX).
+- **Lumped Settlement Ambiguity:** Gateways batch hundreds of orders into a single net payout UTR, obscuring individual order fee deductions and disputes.
+- **Manual Spreadsheet Fatigue:** Finance teams spend days manually cross-referencing order IDs against bank credits, leading to delayed financial closes and undetected fee leakage.
+- **LLM Hallucinations in Financial Auditing:** Standard AI models make arithmetic errors and fabricate numbers when tasked with complex ledger calculations.
+
+When real-world commercial edge cases occur, traditional reconciliation systems fail silently:
+* ⚠️ **Dropped Webhooks (Ghost Payments):** The customer pays and the gateway captures funds, but a dropped webhook leaves the store order marked as `PENDING`, causing packaging delays and inventory discrepancies.
+* ⚠️ **Gateway MDR Fee Overcharges:** Gateways misclassify card tiers (e.g. charging 2.75% international rates instead of a contracted 2.00% domestic SLA), quietly leaking merchant revenue across thousands of orders.
+* ⚠️ **Orphan Customer Refunds & Fee Leakage:** Returns from prior billing cycles are deducted from today's payout without matching current-day orders, while gateway processing fees (MDR + GST) are permanently non-reversed.
+* ⚠️ **Customer Bank Chargeback Holds:** A customer disputes a charge directly with their bank, causing the gateway to freeze the order GMV plus slap an administrative penalty (₹500 fee + 18% GST) into temporary escrow.
+* ⚠️ **Section 194-O Statutory TDS Withholding:** Under Indian Income Tax law (Section 194-O), E-Commerce Operators (ECOs like Razorpay) are legally mandated to deduct TDS upfront on the gross sales value before releasing payouts. While statutory rates in India vary based on entity type and PAN compliance (ranging from 0.1% to 1.0% standard, or up to 5%/20% under Section 206AA if PAN is invalid), our project implements a **1.00% default baseline rate** (fully customizable in `config.ini`). Razorpay manages this withholding and deposits it directly to the Government of India against the merchant's PAN, settling only the net amount to the bank.
+
+---
+
+### 💡 The Solution: AutoReconAI
+
+**AutoReconAI** delivers an enterprise-grade, end-to-end automated reconciliation and AI auditing platform:
+
+#### 1. 🧪 Highly Authentic 2-System Data Simulation
+Unlike basic projects that use static mock CSVs or simple random scripts, AutoReconAI simulates **two independent real-world systems**:
+- A **Merchant Storefront Server (Port 5050)** handling live customer shopping carts and sales bills.
+- A **Razorpay Gateway Core Engine (Port 5051)** calculating dynamic MDR fees, GST, TDS, assigning daily UTR batches, and simulating real-world network anomalies.
+- Realistic **bank expense imputation** (rent, BESCOM utility bills, staff wages, supplier NEFTs) mixed with payout credits.
+
+#### 2. 🖥️ Intuitive 3-Stage AutoReconAI Hub (Left Panel Operations)
+- 📁 **Data Ingestion:** Upload Store Orders CSV, Settlement CSV, and multi-page digital Bank Statements (PDF/Excel). Auto-detects tables with $\ge 5$ columns and provides an interactive visual header mapper.
+- 🔍 **3-Way Reconciliation Matrix:** Displays a unified, triangulated view of all 3 uploaded ledgers grouped by daily settlement UTR containers. Isolates gateway payouts from general bank expenses and tags each order with live match badges (`✅ Matched` / `⚠️ Mismatched`).
+  - **🤖 AI Finance Controller Drawer:** An embedded multi-agent copilot that investigates mismatches, explains disputes, traces order lifecycles, and auto-drafts Razorpay dispute claim tickets with **100% mathematical precision and zero data hallucination**.
+- 📊 **Data Analysis & Insights Hub:** An executive financial analytics dashboard featuring interactive Chart.js visualizations, take-rate breakdown, 4 core financial pillars (GMV, Bank Payout, MDR Expense, Claimable 18% GST Input Tax Credit), proportional revenue flow bar, and GSTR-3B tax compliance guidance.
+
+#### 3. 🤖 Specialized Multi-Agent AI Framework
+- **Agent 1 (`SentinelFirewallAI`):** Deterministic & semantic security guardrail blocking prompt injections, SQL tampering, and out-of-scope non-financial queries.
+- **Agent 2 (`DomainReasonerAI`):** Autonomous **ReAct (Reason + Act)** auditing agent. It **Reasons** over the user query & 5-turn memory, then **Acts** by calling deterministic Python calculation tools (`ReconToolbox`) grounded directly in the authentic ledgers (`store_orders.csv`, `razorpay_settlement_recon.csv`, bank statements, and `store.db`). This data-grounded execution completely eliminates LLM arithmetic hallucinations.
+- **Agent 3 (`PrecisionSynthesizerAI`):** Pure presentation formatter enforcing zero boilerplate and verbatim mathematical immutability.
+- **Agent 5 (`TaxOptimizerAI`):** Dedicated executive tax strategist generating Section 16 CGST Input Tax Credit (ITC) advice and take-rate analytics.
 
 ---
 
@@ -60,23 +91,15 @@ Traditional reconciliation tools rely on static spreadsheets or brittle rule eng
 The entire lifecycle follows an intuitive, sequential timeline:
 
 ```mermaid
-timeline
-    title AutoReconAI End-to-End Operational Timeline
-    section 1. Setup & Configuration
-        Install Dependencies & Drivers : Python virtualenv + Playwright browsers
-        Configure Master SLA : Define MDR, GST, TDS & Edge Cases in config.ini
-        Configure AI Models : Select active Gemini model & fallback chain in ai_models.ini
-    section 2. Simulation & Data Generation
-        Start Merchant Store (5050) : Runs FreshMart Storefront Server
-        Start Razorpay Suite (5051 & 5055) : Launches Gateway Engine & AutoReconAI Hub
-        Run Simulation Pipeline : Executes shopper, injects edge cases, exports 3 ledgers
-    section 3. Ingestion & Reconciliation
-        Upload 3 Files in Ingestion Hub : Store CSV + Bank Statement (PDF/XLSX) + Settlement CSV
-        Map Bank Statement Headers : Interactive modal maps Txn Date, Narration, Debit, Credit, Balance
-        Generate 3-Way Matrix : Isolates Razorpay UTR batches & links order-by-order
-    section 4. AI Audit & Visual Analytics
-        Chat with AI Copilot Drawer : Run dispute claim drafts, chargeback defense & tax audits
-        Data Analysis & Insights Hub : Inspect interactive visual take-rate charts & GST ITC breakdown
+flowchart LR
+    A["🛒 1. Customer Orders<br/><b>FreshMart Store (5050)</b><br/>• Live Cart & Sales Bill"] <-->|"100% Reconciled Baseline<br/>(Checkout ⇄ Gateway ACK)"| B["💳 2. Gateway Engine<br/><b>Razorpay (5051)</b><br/>• MDR, GST, TDS & UTRs"]
+    B -->|"1. Impute Non-Razorpay Expenses<br/>2. Inject Configured Edge Cases<br/>3. Export Daily Batch Settlements"| C["📁 3. Generated Files<br/><b>generated_data/</b><br/>• Store, Gateway & Bank PDF"]
+    C -->|Upload & Map| D["🔍 4. 3-Way Reconciliation<br/><b>AutoReconAI Hub (5055)</b><br/>• UTR Triangulation Matrix"]
+    D -->|Audit Discrepancies| E["🤖 5. Multi-Agent AI<br/><b>Copilot Drawer</b><br/>• Dispute Claims & Defense"]
+    D -->|Visual Take-Rates| F["📊 6. Data Analysis Hub<br/><b>Executive Dashboard</b><br/>• Chart.js & GST ITC Rules"]
+
+    classDef cleanNode fill:#ffffff,stroke:#0284c7,stroke-width:2px,color:#0f172a;
+    class A,B,C,D,E,F cleanNode;
 ```
 
 ---
@@ -107,7 +130,7 @@ git clone https://github.com/Venukumar975/AutoReconAI.git
 cd AutoReconAI
 
 # 2. Create .env file in the root directory
-# Add your Gemini API key:
+# Add your Google Gemini API key:
 echo "GEMINI_API_KEY=your_actual_gemini_api_key_here" > .env
 
 # 3. Create and activate a virtual environment
@@ -123,10 +146,13 @@ venv\Scripts\activate.bat
 python3 -m venv venv
 source venv/bin/activate
 
-# 4. Install all required dependencies
+# 4. Install core requirements
+# Tailored for default 'super_fast' simulation (generates highly authentic 2-system data in seconds without rendering UI)
 pip install -r requirements.txt
 
-# 5. Install Playwright browser drivers (Required for visual simulation modes)
+# 5. [OPTIONAL] Visual Browser Simulation Drivers
+# If you want to see live customer shopping simulation in a real browser (fast / normal mode in config.ini):
+pip install playwright
 playwright install chromium
 ```
 
@@ -134,13 +160,15 @@ playwright install chromium
 
 ## 🧠 Configuring AI Models (`ai_models.ini`) & Fallback Chain
 
-AutoReconAI features a **Dynamic Zero-Code AI Model Configuration** file located at [`ai_models.ini`](./ai_models.ini). You can switch models or update model identifiers without touching any Python backend code.
+AutoReconAI decouples AI model selection from the backend code using [`ai_models.ini`](./ai_models.ini). You can easily change the active Gemini model or customize fallback models by simply editing this text file—**no Python coding required!**
 
-### Official Google Gemini Model Reference:
-- [Google AI Studio Gemini Models Documentation](https://ai.google.dev/gemini-api/docs/models/gemini)
-- [Gemini API Rate Limits & Pricing](https://ai.google.dev/pricing)
+Users and reviewers can explore all available Google Gemini models, compare token limits, and choose any model of their choice by visiting the official links below:
 
-### Understanding `ai_models.ini`:
+### 🔗 Official Google Gemini Model References:
+- 📖 [Google AI Studio Gemini Models Documentation](https://ai.google.dev/gemini-api/docs/models/gemini) *(Browse all available Gemini models and identifiers)*
+- 💰 [Gemini API Rate Limits & Pricing](https://ai.google.dev/pricing) *(Review RPM buckets and free tier quotas)*
+
+### How `ai_models.ini` is Structured:
 ```ini
 [GEMINI_MODELS]
 # Active Model: Fast, native function calling (15 RPM bucket, 500 Requests/Day)
@@ -159,73 +187,107 @@ temperature = 0.0
 max_output_tokens = 2048
 ```
 
-> **🛡️ Zero-Downtime Resilience:** If `current_model` encounters a `429 Too Many Requests` rate-limit during bulk multi-tool audits, the AI engine automatically shifts to the next independent RPM bucket in the fallback chain without dropping the user's session.
+> **💡 Automatic Model Fallback:** If `current_model` encounters a `429 Too Many Requests` rate-limit or quota limit during heavy multi-tool reasoning, the AI engine shifts to the next available fallback model in the chain so the user can simply retry their query smoothly.
 
 ---
 
-## 🧪 The 2-System Realistic Simulation Engine
+## 🧪 Realistic Data & Edge Case Simulation Pipeline
 
-Unlike basic projects that use static mock CSVs or simple random scripts, AutoReconAI features a **true 2-system simulation architecture**:
-- **System 1 (Merchant Storefront - Port 5050):** Customers browse products, add items to cart, and initiate checkouts.
-- **System 2 (Razorpay Gateway Core - Port 5051):** Calculates transaction fees against contracted SLA, simulates network webhooks, and assigns daily settlement UTRs.
+Unlike basic projects that use static random CSVs, AutoReconAI features an authentic **Data Simulation Pipeline** that realistically models how transactions, settlements, and dispute anomalies occur in real-world e-commerce:
 
-### Simulation Modes (Configured in `config.ini`):
-1. **`super_fast` (Recommended):** Pure Python HTTP requests (`urllib`). Executes 50–500+ realistic customer checkouts in under 2 seconds!
-2. **`fast`:** Playwright Chromium visible browser with accelerated UI clicks and cart interactions.
-3. **`normal`:** Playwright Chromium visible browser with human-like delays (250ms clicks, smooth scrolling).
+### 1. The Core Simulation Mechanics:
+- **FreshMart Merchant Storefront (Port 5050):** A full grocery store web application with a live shopping catalog, active cart API, and order persistence in `store.db`. When an order is created, its initial status is marked as `PENDING`.
+- **Razorpay Gateway Core Server (Port 5051):** Independent payment gateway server that receives checkout requests, computes contracted MDR fees & 18% GST according to SLA, groups payouts by daily settlement UTRs, and sends a payment capture webhook ACK back to the merchant store.
+- **2-Way Webhook Delivery:** In real-world Razorpay environments, webhooks operate as asynchronous event callbacks. In our simulation environment, the gateway sends a structured webhook ACK to the merchant storefront, which updates the order status in `store.db` from `PENDING` to `FULFILLED`.
 
-### 🔄 Multi-System Simulation Sequence Diagram:
+---
+
+### 2. Generating 100% Reconciled Baseline Data:
+When `run_simulation_pipeline.py` starts:
+1. It cleans and seeds `store.db` with fresh grocery products.
+2. The automated shopper generates customer orders on Port 5050 and completes payments on Port 5051.
+3. Every order receives a corresponding captured payment record and a matching bank payout credit under daily settlement UTRs.
+4. **Result:** A perfectly matched, zero-dispute baseline across all three financial ledgers.
+
+---
+
+### 3. Imputing Non-Razorpay Bank Expenses (`bank_narrations.json`):
+In real business banking, a merchant's bank statement does not only contain Razorpay payout credits; it also records everyday business debits and operational expenses.
+- AutoReconAI reads `bank_narrations.json` and injects authentic commercial debits (e.g. BESCOM electricity bills, warehouse rent, Swiggy/Zomato meals, delivery fleet fuel, supplier NEFTs).
+- The volume of expenses is governed by `imputed_expenses_percentage` in `config.ini` (e.g., 50% = adds 25 expense debits for 50 gateway orders).
+- The exporter calculates authentic running bank balances starting from `opening_balance` in `config.ini`.
+
+---
+
+### 4. Simulating Commercial Edge Cases via `config.ini`:
+To test forensic auditing capabilities, the pipeline injects 5 real-world payment gateway anomalies governed by keys in [`config.ini`](./config.ini):
+
+| `config.ini` Parameter | Commercial Edge Case | Real-World Context & How It Is Simulated |
+|:---|:---|:---|
+| `dropped_webhook_count` | **Dropped Webhook** | Simulates network timeouts or packet loss where Razorpay captures funds, but the store webhook drops (`504 Timeout`), leaving the store order stuck in `PENDING`. |
+| `fee_overcharge_count` | **MDR Fee Overcharge** | Simulates card tier misclassifications by billing domestic transactions at inflated rates (e.g. 2.75% MDR instead of the 2.00% SLA) in the gateway records. |
+| `orphan_refund_count` | **Orphan Refund** | Simulates prior-period customer returns deducted from today's bank payout without matching current-day orders, retaining unreversed gateway processing fee leakage. |
+| `chargeback_hold_count` | **Bank Chargeback Hold** | Simulates customer fraud disputes where the card issuing bank freezes the order GMV plus debits an administrative dispute penalty (₹500 fee + ₹90 GST) into escrow. |
+| `is_tds_applicable` & `tds_rate_percent` | **Section 194-O TDS** | Simulates Indian Income Tax law where payment gateways withhold 1.00% statutory TDS upfront on gross sales value before releasing net bank payouts. |
+
+---
+
+### 5. Multi-System Simulation Sequence Diagram:
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Customer as Automated Customer Shopper
     participant Store as FreshMart Storefront (Port 5050)
-    participant DB as SQLite Master DB (store.db)
+    participant DB as Master SQLite DB (store.db)
     participant Gateway as Razorpay Gateway (Port 5051)
     participant Exporter as Statement Exporter & Anomaly Mutator
-    participant Output as Generated Files (generated_data/)
+    participant Output as Generated Datasets (generated_data/)
 
-    Customer->>Store: POST /api/cart/add (Selected Grocery Items)
+    Customer->>Store: 1. POST /api/cart/add (Grocery Items)
     Store->>DB: INSERT into `cart` (order_id: 'ACTIVE_CART')
-    Customer->>Store: POST /api/create-order (Customer Name, Date)
+    Customer->>Store: 2. POST /api/create-order (Customer Name, Date)
     Store->>DB: INSERT into `orders` (order_id: ORD_xxxx, status: 'PENDING')
-    Store->>Gateway: POST /api/gateway/pay (Gross GMV, Order ID, Date)
+    Store->>Gateway: 3. POST /api/gateway/pay (Gross GMV, Order ID, Date)
     
-    rect rgb(240, 248, 255)
-        Note over Gateway: Gateway reads contracted MDR & GST from config.ini
-        Gateway->>Gateway: Compute MDR Fee & 18% GST (or inject overcharge)
-        Gateway->>Gateway: Assign Daily Settlement UTR (e.g. CMS202605011029)
-        Gateway->>DB: INSERT into `payments` (payment_id, fee, tax, net_credit, utr, status: 'captured')
-    end
+    Note over Gateway: Gateway reads contracted MDR & GST SLA from config.ini
+    Gateway->>Gateway: Compute MDR Fee & 18% GST (or inject fee overcharge)
+    Gateway->>Gateway: Assign Daily Settlement UTR Batch (e.g. CMS202605011029)
+    Gateway->>DB: INSERT into `payments` (payment_id, fee, tax, net_credit, utr, status: 'captured')
 
-    alt Normal Webhook Delivery
-        Gateway-->>Store: 200 OK (Payment Captured ACK)
+    alt Normal Webhook Delivery (100% Reconciled Flow)
+        Gateway-->>Store: 200 OK (Payment Captured Webhook ACK)
         Store->>DB: UPDATE `orders` SET status = 'FULFILLED'
-    else Edge Case 1: Dropped Webhook (Simulated)
-        Gateway--xStore: 504 Gateway Timeout / Dropped ACK
-        Note over Store: Order remains stuck in 'PENDING'
+    else Edge Case 1: Dropped Webhook (Simulated Network Loss)
+        Gateway--xStore: 504 Gateway Timeout / Dropped Webhook ACK
+        Note over Store: Order remains stuck in 'PENDING' state
     end
 
-    Note over Exporter: Pipeline Step: Apply Modular Edge Cases & Impute Bank Data
-    Exporter->>DB: Apply Fee Overcharges, Non-Reversed Refunds, Chargebacks, TDS
-    Exporter->>DB: Fetch Payouts & Group by Settlement UTR
+    Note over Exporter: Pipeline Step: Apply Configured Edge Cases & Impute Bank Expenses
+    Exporter->>DB: Apply Fee Overcharges, Orphan Refunds, Chargeback Holds & TDS
+    Exporter->>DB: Fetch Payouts & Group by Settlement UTR Batches
     Exporter->>Exporter: Impute Non-Razorpay Expenses (Rent, BESCOM, Wages) from bank_narrations.json
-    Exporter->>Output: Export store_orders.csv
-    Exporter->>Output: Export razorpay_settlement_recon.csv
-    Exporter->>Output: Export bank_statement_union_bank.pdf / .xlsx
+    Exporter->>Output: Export store_orders.csv (Merchant Sales Ledger)
+    Exporter->>Output: Export razorpay_settlement_recon.csv (Gateway Ledger)
+    Exporter->>Output: Export bank_statement_union_bank.pdf / .xlsx (Bank Statement)
 ```
 
-### 🏦 Non-Razorpay Bank Expenses Imputation:
-In real life, a merchant's bank account receives payout credits alongside everyday business expenses. AutoReconAI reads `bank_narrations.json` and dynamically imputes non-Razorpay transactions (e.g., BESCOM power utility, warehouse rent, Swiggy/Zomato meals, delivery fleet fuel, supplier NEFTs) based on `imputed_expenses_percentage` in `config.ini`.
+---
 
-### 📁 Generated Files Location & Overwrite Protocol:
+### 6. Simulation Modes (Configured in `config.ini`):
+1. **`super_fast` (Default & Recommended):** Pure Python standard library HTTP API requests (`urllib.request`). Generates 50–500+ authentic customer orders, payments, and bank ledgers in under 2 seconds without launching any external browser. **Requires zero browser dependencies!**
+2. **`fast`:** Automated visual Chromium browser powered by Playwright with fast-forwarded UI clicks (80ms click, 150ms modal). *(Requires `pip install playwright && playwright install chromium`)*.
+3. **`normal`:** Automated visual Chromium browser powered by Playwright with human-like delays (250ms clicks, smooth cart animation). *(Requires `pip install playwright && playwright install chromium`)*.
+
+---
+
+### 7. Generated Files Location & Overwrite Protocol:
 All output datasets are compiled into the [`generated_data/`](./generated_data/) directory:
 1. `store_orders.csv`: Master merchant sales bills.
 2. `razorpay_settlement_recon.csv`: Gateway processing records with fees, taxes, and UTRs.
 3. `bank_statement_union_bank.pdf` / `.xlsx` (or `bank_statement_sbi.pdf` / `.xlsx`): Digital bank statement with 7-column layout and running balances.
 
-> **⚠️ Overwrite Behavior:** Every time you run `Data Simulator & Generator/run_simulation_pipeline.py`, the master database `store.db` is reset to clean catalog state, and all files in `generated_data/` are cleanly regenerated.
+> **⚠️ Clean Overwrite Behavior:** Every time you run `Data Simulator & Generator/run_simulation_pipeline.py`, the master database `store.db` is reset to a clean catalog state, and all files in `generated_data/` are cleanly regenerated.
 
 ---
 
@@ -326,11 +388,23 @@ flowchart TD
     A3 --> FinalResp([Deliver Mathematically Immutable Answer to User])
 ```
 
-### Agent Roles & Isolation:
-1. **Agent 1 (`SentinelFirewallAI`):** First-line hybrid deterministic & semantic security firewall. Blocks prompt injections (`ignore previous instructions`), SQL tampering, and out-of-scope non-financial banter. Handles greetings with warm 1-liners.
-2. **Agent 2 (`DomainReasonerAI`):** Domain intelligence and tool executor. Injected with [`tools_desc.json`](./AutoReconAI/backend/agents/tools_desc.json). Autonomously invokes deterministic Python calculation tools across uploaded session data.
-3. **Agent 3 (`PrecisionSynthesizerAI`):** Pure presentation formatter. Enforces **Zero Boilerplate** (no *"As an AI..."*) and **Mathematical Immutability** (numbers are verbatim embedded from tool payloads).
-4. **Agent 5 (`TaxOptimizerAI`):** Specialized corporate tax strategist generating GST Input Tax Credit (ITC) advice and take-rate analytics.
+### Agent Roles, ReAct Workflow & Zero-Hallucination Isolation:
+
+1. **Agent 1 (`SentinelFirewallAI` - Security & Ingestion Gatekeeper):**
+   - **Layer 1 (Deterministic Regex):** Fast checks blocking prompt injection attacks (`ignore previous instructions`, `DAN mode`), SQL tampering (`DROP TABLE`, `UPDATE SET`), and credential theft.
+   - **Layer 2 (Semantic Scope):** Evaluates if the query is in-scope for financial reconciliation. Blocks out-of-scope non-financial queries and responds to greetings with polite 1-liners.
+
+2. **Agent 2 (`DomainReasonerAI` - ReAct Domain Reasoner & Tool Auditor):**
+   - **🧠 Reason (Cognitive Context & Memory):** Reads user intent, resolves pronouns from conversation history (5-turn sliding memory), and dynamically determines which tool sequence is needed.
+   - **⚙️ Act (Autonomous Deterministic Execution):** Instead of guessing or calculating arithmetic internally, it invokes Python calculation tools from [`ReconToolbox`](./AutoReconAI/backend/agents/tools.py) via native function calling declared in [`tools_desc.json`](./AutoReconAI/backend/agents/tools_desc.json).
+   - **🛡️ Data Grounding & Zero Hallucination:** The tools query authentic data sources (`store_orders.csv`, `razorpay_settlement_recon.csv`, bank statements, and `store.db`) as the absolute single source of truth. Agent 2 forwards a 100% verified arithmetic JSON payload to Agent 3.
+
+3. **Agent 3 (`PrecisionSynthesizerAI` - Presentation & Formatting Engine):**
+   - Pure presentation formatter. Takes the verified fact payload from Agent 2 and formats clean Markdown tables, email dispute claim tickets, or statutory tax statements.
+   - Enforces **Zero Boilerplate** (no repetitive introductory chatter) and **Mathematical Immutability** (numbers are strictly preserved verbatim from tool payloads).
+
+4. **Agent 5 (`TaxOptimizerAI` - Corporate Tax Strategist):**
+   - Specialized executive financial advisor. Analyzes verified settlement metrics to compute Section 16 CGST Input Tax Credit (ITC) eligibility for GSTR-3B filings, take-rate evaluations, and operational recovery actions.
 
 ---
 
