@@ -84,7 +84,7 @@ Unlike basic projects that use static mock CSVs or simple random scripts, AutoRe
 #### 3. 🤖 Specialized Multi-Agent AI Framework
 - **Agent 1 (`SentinelFirewallAI`):** Deterministic & semantic security guardrail blocking prompt injections, SQL tampering, and out-of-scope non-financial queries.
 - **Agent 2 (`DomainReasonerAI`):** Autonomous **ReAct (Reason + Act)** auditing agent. It **Reasons** over the user query & 5-turn memory, then **Acts** by calling deterministic Python calculation tools (`ReconToolbox`) grounded directly in the authentic ledgers (`store_orders.csv`, `razorpay_settlement_recon.csv`, bank statements, and `store.db`). This data-grounded execution completely eliminates LLM arithmetic hallucinations.
-- **Agent 3 (`PrecisionSynthesizerAI`):** Autonomous presentation & visualization synthesizer. Formats zero-boilerplate Markdown tables, ready-to-send dispute tickets, and dynamically generates **interactive Mermaid diagrams (Pie charts, Procedural Flowcharts, Comparative Subgraphs)** with mandatory visual-to-data cross-checking for 100% zero-hallucination accuracy.
+- **Agent 3 (`PrecisionSynthesizerAI`):** The primary **Financial Synthesis & Communication Engine**. It crafts comprehensive textual answers, itemized ledger tables, ready-to-send Razorpay dispute emails, and statutory tax breakdowns with 100% mathematical immutability. When visual representation is requested, it conditionally synthesizes interactive **Mermaid diagrams (Pie charts, Flowcharts, Subgraphs)** while always maintaining the full analytical explanation and cross-checking facts for zero hallucination.
 - **Agent 4 (`TaxOptimizerAI`):** Dedicated executive tax strategist generating Section 16 CGST Input Tax Credit (ITC) advice and take-rate analytics.
 
 ---
@@ -464,14 +464,21 @@ flowchart TD
    - **⚙️ Act (Autonomous Deterministic Execution):** Instead of guessing or calculating arithmetic internally, it invokes Python calculation tools from [`ReconToolbox`](./AutoReconAI/backend/agents/tools.py) via native function calling declared in [`tools_desc.json`](./AutoReconAI/backend/agents/tools_desc.json).
    - **🛡️ Data Grounding & Zero Hallucination:** The tools query authentic data sources (`store_orders.csv`, `razorpay_settlement_recon.csv`, bank statements, and `store.db`) as the absolute single source of truth. Agent 2 forwards a 100% verified arithmetic JSON payload to Agent 3.
 
-3. **Agent 3 (`PrecisionSynthesizerAI` - Presentation, Visualization & Formatting Engine):**
-   - **Autonomous Visual Reasoning & Dynamic Markdown Mermaid Synthesis:** When visual intent is detected, Agent 3 evaluates the mathematical shape of the data and dynamically synthesizes responsive Mermaid diagrams:
-     - 🥧 **Proportional Distribution (Pie Charts):** Visualizes dispute hold shares, fee overcharge percentages, and macro cash flows.
-     - 🔀 **Procedural Lifecycles (Flowcharts `flowchart TD`):** Step-by-step decision trees for dropped webhook store sync and 7-day chargeback defense workflows.
-     - 📊 **Comparative Subgraph Mappings (`flowchart LR`):** Order-wise effective rate markups against the 2.60% contracted SLA baseline.
-   - **Mandatory Visual-to-Data Cross-Check Audit (Zero Hallucination):** Systematically audits diagram labels, percentages, and slice values against Agent 2's raw verified facts payload before delivering output, guaranteeing 100% mathematical consistency down to the exact paise.
-   - **Interactive Pan & Zoom Diagram Viewer:** Renders inside a specialized UI container equipped with a floating toolbar (➕ Zoom In, ➖ Zoom Out, ↺ Reset) and click-and-drag hand panning isolated to the diagram card.
-   - **Zero Boilerplate & Mathematical Immutability:** Enforces concise, direct answers with comprehensive itemized ledger tables and actionable recovery recommendations.
+3. **Agent 3 (`PrecisionSynthesizerAI` - Comprehensive Financial Synthesis & Visual Communication Engine):**
+   - **Core Mission — In-Depth Financial Answers & Actionable Synthesis:**
+     - Delivers comprehensive, direct analytical responses without conversational boilerplate.
+     - Builds rich, itemized ledger tables with bottom totals, exact UTR matches, and basis-point (bps) rate drift metrics.
+     - Auto-generates formal, ready-to-send Razorpay dispute emails (`merchant-disputes@razorpay.com`) with embedded settlement evidence.
+     - Explains complex statutory tax rules (Section 194-O TDS Form 26AS claims and Section 16 CGST Input Tax Credit under GSTR-3B).
+     - Provides clear, step-by-step recovery and operational remediation playbooks.
+   - **Conditional Visual Diagramming & Dynamic Mermaid Synthesis:**
+     - When visual charts or diagrams are requested, Agent 3 evaluates the mathematical shape of the data and dynamically synthesizes interactive Markdown Mermaid diagrams placed *above* the full textual and tabular explanation:
+       - 🥧 **Proportional Distribution (Pie Charts):** Dispute escrow hold shares, fee overcharge percentages, and macro cash flows.
+       - 🔀 **Procedural Lifecycles (Flowcharts `flowchart TD`):** Decision workflows for dropped webhook store sync and 7-day chargeback defenses.
+       - 📊 **Comparative Subgraph Mappings (`flowchart LR`):** Order-wise effective rate markups against the contracted 2.60% SLA baseline.
+     - **Interactive Pan & Zoom Diagram Viewer:** Equipped with a floating toolbar (➕ Zoom In, ➖ Zoom Out, ↺ Reset) and click-and-drag hand panning.
+   - **Mandatory Visual-to-Data Cross-Check Audit (Zero Hallucination):**
+     - Systematically audits all diagram labels, percentages, and slice values against Agent 2's raw verified facts payload before delivering output, guaranteeing 100% mathematical consistency down to the exact paise across both text and visual components.
 
 4. **Agent 4 (`TaxOptimizerAI` - Corporate Tax Strategist):**
    - Specialized executive financial advisor. Analyzes verified settlement metrics to compute Section 16 CGST Input Tax Credit (ITC) eligibility for GSTR-3B filings, take-rate evaluations, and operational recovery actions.
