@@ -68,7 +68,7 @@ const App = (() => {
     } else if (viewName === 'unpacker') {
       viewUnpacker.style.display = 'block';
       navUnpacker.classList.add('active');
-      if (breadcrumbCurrent) breadcrumbCurrent.innerText = 'Settlement Unpacker & Tax/Sales Executive Hub';
+      if (breadcrumbCurrent) breadcrumbCurrent.innerText = 'Data Analysis & Insights Hub';
     }
   }
 
