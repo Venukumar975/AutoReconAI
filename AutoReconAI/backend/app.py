@@ -239,18 +239,54 @@ def apply_bank_mapping():
 
         total_credits = sum(t["credit"] for t in txns)
         total_debits = sum(t["debit"] for t in txns)
-        net_credits = round(total_credits - total_debits, 2)
-        gateway_credits_count = sum(1 for t in txns if t["is_gateway_credit"])
-        operating_debits_count = sum(1 for t in txns if not t["is_gateway_credit"] and t["debit"] > 0)
+        closing_bal = round(opening_bal + total_credits - total_debits, 2)
+
+        # If settlements already uploaded in session, auto-reconcile immediately
+        bank_card_update = None
+        if SESSION_DATA.get("settlements"):
+            settlements = SESSION_DATA["settlements"]
+            settlement_utrs = set(
+                str(s.get("settlement_utr", "")).strip()
+                for s in settlements
+                if str(s.get("settlement_utr", "")).strip() and str(s.get("settlement_utr", "")).strip() != "-"
+            )
+            gateway_txns = []
+            for t in txns:
+                desc = str(t.get("description", ""))
+                extracted_utr = str(t.get("extracted_utr", "")).strip()
+                is_matched = (extracted_utr in settlement_utrs and extracted_utr != "-") or any(u in desc for u in settlement_utrs)
+                if not is_matched and ("CMS" in desc or "RAZORPAY" in desc):
+                    is_matched = True
+                t["is_gateway_credit"] = is_matched
+                if is_matched:
+                    gateway_txns.append(t)
+
+            gw_credits = sum(t["credit"] for t in gateway_txns)
+            gw_debits = sum(t["debit"] for t in gateway_txns)
+            gw_net = round(gw_credits - gw_debits, 2)
+            gw_closing_bal = round(opening_bal + gw_net, 2)
+
+            bank_card_update = {
+                "opening_balance": round(opening_bal, 2),
+                "opening_balance_type": "Cr" if opening_bal >= 0 else "Dr",
+                "vouchers_count": len(gateway_txns),
+                "closing_balance": round(gw_closing_bal, 2),
+                "closing_balance_type": "Cr" if gw_closing_bal >= 0 else "Dr",
+                "is_closing_positive": gw_closing_bal >= 0,
+                "gateway_net_deposit": gw_net
+            }
 
         return jsonify({
             "success": True,
             "total_transactions": len(txns),
+            "opening_balance": round(opening_bal, 2),
+            "opening_balance_type": "Cr" if opening_bal >= 0 else "Dr",
             "total_credits": round(total_credits, 2),
             "total_debits": round(total_debits, 2),
-            "net_credits": net_credits,
-            "gateway_credits_count": gateway_credits_count,
-            "operating_debits_count": operating_debits_count,
+            "closing_balance": round(closing_bal, 2),
+            "closing_balance_type": "Cr" if closing_bal >= 0 else "Dr",
+            "is_closing_positive": closing_bal >= 0,
+            "bank_card_update": bank_card_update,
             "preview_rows": txns[:5]
         })
 
@@ -282,6 +318,45 @@ def upload_settlement():
         total_tax = sum(s["tax"] for s in settlements)
         total_net_credit = sum(s["net_credit"] for s in settlements)
 
+        # Automatic live isolation of Gateway Bank Ledger using Settlement UTR Regex Matching
+        bank_card_update = None
+        if SESSION_DATA.get("bank_txns"):
+            settlement_utrs = set(
+                str(s.get("settlement_utr", "")).strip()
+                for s in settlements
+                if str(s.get("settlement_utr", "")).strip() and str(s.get("settlement_utr", "")).strip() != "-"
+            )
+
+            gateway_txns = []
+            for t in SESSION_DATA["bank_txns"]:
+                desc = str(t.get("description", ""))
+                extracted_utr = str(t.get("extracted_utr", "")).strip()
+                
+                # Check regex matching against extracted settlement UTRs
+                is_matched = (extracted_utr in settlement_utrs and extracted_utr != "-") or any(u in desc for u in settlement_utrs)
+                if not is_matched and ("CMS" in desc or "RAZORPAY" in desc):
+                    is_matched = True
+                
+                t["is_gateway_credit"] = is_matched
+                if is_matched:
+                    gateway_txns.append(t)
+
+            opening_bal = SESSION_DATA.get("opening_balance", 25000.00)
+            gw_credits = sum(t["credit"] for t in gateway_txns)
+            gw_debits = sum(t["debit"] for t in gateway_txns)
+            gw_net = round(gw_credits - gw_debits, 2)
+            gw_closing_bal = round(opening_bal + gw_net, 2)
+
+            bank_card_update = {
+                "opening_balance": round(opening_bal, 2),
+                "opening_balance_type": "Cr" if opening_bal >= 0 else "Dr",
+                "vouchers_count": len(gateway_txns),
+                "closing_balance": round(gw_closing_bal, 2),
+                "closing_balance_type": "Cr" if gw_closing_bal >= 0 else "Dr",
+                "is_closing_positive": gw_closing_bal >= 0,
+                "gateway_net_deposit": gw_net
+            }
+
         return jsonify({
             "success": True,
             "filename": file.filename,
@@ -290,6 +365,7 @@ def upload_settlement():
             "total_fees": round(total_fees, 2),
             "total_tax": round(total_tax, 2),
             "total_net_credit": round(total_net_credit, 2),
+            "bank_card_update": bank_card_update,
             "preview_rows": settlements[:5]
         })
 

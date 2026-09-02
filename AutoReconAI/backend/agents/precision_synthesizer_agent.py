@@ -80,7 +80,7 @@ PRESENTATION & LAYOUT GUIDELINES:
            (Do NOT add dispute handling fees back to the payout).
 
    - TEMPLATE 4: Statutory Section 194-O TDS & GST Input Tax Credit Statement (`#section_194o_tds` or `#gst_itc` or when asked for TDS / ITC tax breakdown):
-     * If TDS is active: Output the Section 194-O TDS Breakdown Table (Order ID, Settlement UTR, Date, Gross GMV, 1% TDS, Form 26AS Ledger) AND the GST Input Tax Credit (ITC) on Gateway MDR Table.
+     * If TDS is active: Output the Section 194-O TDS Breakdown Table using the EXACT configured TDS rate (e.g. 5.00% or active %) and verified withholding amount from Agent 2 AND the GST Input Tax Credit (ITC) on Gateway MDR Table. Never assume a default 1.00% if the active rate is different.
      * If TDS is not applicable: Clearly state that Section 194-O TDS is disabled/not applicable (0.00% withheld) and output the GST Input Tax Credit (ITC) Table.
      * Provide a clear, professional financial statement explaining:
        1. 18% GST on Razorpay MDR is an eligible Input Tax Credit (ITC) claimable in Table 4(A)(5) of monthly GSTR-3B.
@@ -212,9 +212,14 @@ class PrecisionSynthesizerAI:
                 history_lines.append(f"[Turn {idx}] User: \"{u_text}\" -> Assistant: \"{a_text}\"")
             history_context = f"RECENT CONVERSATION HISTORY (Last 5 Interactions):\n" + "\n".join(history_lines) + "\n\n"
 
+        tax_profile = GatewayConfig.get_merchant_tax_profile()
+        tds_status_str = f"ACTIVE ({tax_profile.get('tds_rate_percent', 1.0):.2f}%)" if tax_profile.get('is_tds_applicable') else "DISABLED (0.00%)"
+        tax_profile_text = f"MERCHANT TAX & TDS PROFILE: PAN: {tax_profile.get('pan')}, GSTIN: {tax_profile.get('gstin')}, TDS Status: {tds_status_str}"
+
         context_prompt = (
             f"{SYNTHESIZER_SYSTEM_PROMPT}\n\n"
             f"ACTIVE CONTRACTED SLA TERMS (from config.ini): {active_sla}\n"
+            f"{tax_profile_text}\n"
             f"{history_context}"
             f"MERCHANT USER QUERY: \"{user_query}\"\n\n"
             f"VERIFIED FINANCIAL FACTS & DATA GATHERED BY DOMAINREASONERAI (AGENT 2):\n"

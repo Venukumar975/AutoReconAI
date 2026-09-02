@@ -144,8 +144,46 @@ const Uploader = (() => {
     dropzone.style.display = 'none';
 
     document.getElementById('name-bank').innerText = filename;
-    const netCredits = (result.net_credits !== undefined) ? result.net_credits : result.total_credits;
-    document.getElementById('stat-bank-credits').innerText = `₹${netCredits.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    
+    // 1. Opening Balance
+    const opBal = result.opening_balance !== undefined ? result.opening_balance : 25000.00;
+    const opType = result.opening_balance_type || (opBal >= 0 ? 'Cr' : 'Dr');
+    const opEl = document.getElementById('stat-bank-opening');
+    if (opEl) {
+      opEl.innerText = `₹${Math.abs(opBal).toLocaleString('en-IN', { minimumFractionDigits: 2 })} ${opType}`;
+      opEl.style.color = opBal >= 0 ? '#059669' : '#dc2626';
+    }
+
+    // 2. Vouchers / Entries Count
+    const countEl = document.getElementById('stat-bank-count');
+    if (countEl) {
+      countEl.innerText = `${result.total_transactions || 0} Vouchers`;
+    }
+
+    // 3. Bank Closing Balance
+    const closeBal = result.closing_balance !== undefined ? result.closing_balance : (opBal + (result.total_credits || 0) - (result.total_debits || 0));
+    const closeType = result.closing_balance_type || (closeBal >= 0 ? 'Cr' : 'Dr');
+    const closeEl = document.getElementById('stat-bank-closing');
+    if (closeEl) {
+      closeEl.innerText = `₹${Math.abs(closeBal).toLocaleString('en-IN', { minimumFractionDigits: 2 })} ${closeType}`;
+      closeEl.style.color = closeBal >= 0 ? '#059669' : '#dc2626';
+    }
+
+    // If settlements already in session, apply gateway reconciled stats immediately
+    if (result.bank_card_update) {
+      const bUp = result.bank_card_update;
+      if (countEl) countEl.innerText = `${bUp.vouchers_count || 0} Vouchers`;
+      if (closeEl) {
+        closeEl.innerText = `₹${Math.abs(bUp.closing_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} ${bUp.closing_balance_type || 'Cr'}`;
+        closeEl.style.color = bUp.is_closing_positive ? '#059669' : '#dc2626';
+      }
+      const bankTag = card.querySelector('.file-stats-tag');
+      if (bankTag) {
+        bankTag.innerText = 'Gateway Reconciled';
+        bankTag.style.backgroundColor = '#ecfdf5';
+        bankTag.style.color = '#059669';
+      }
+    }
 
     uploadedState.style.display = 'flex';
     card.classList.remove('active-step');
@@ -217,6 +255,14 @@ const Uploader = (() => {
       document.getElementById('stat-settlement-count').innerText = `${data.total_records} Payouts`;
       document.getElementById('stat-settlement-net').innerText = `₹${data.total_net_credit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 
+      // Live dynamic refresh of Bank Statement card to match Gateway Settlement ledger
+      const proceedBtn = document.getElementById('btn-proceed-recon');
+      const proceedSubtext = document.getElementById('proceed-subtext');
+      if (proceedBtn) {
+        proceedBtn.disabled = true;
+        proceedBtn.innerHTML = `<span>⚡ Reconciling Gateway UTRs with Bank Statement...</span>`;
+      }
+
       uploadedState.style.display = 'flex';
       card.classList.remove('active-step');
       card.classList.add('completed');
@@ -233,8 +279,48 @@ const Uploader = (() => {
       const fill3 = document.getElementById('timeline-progress-fill');
       if (fill3) fill3.style.width = '100%';
 
-      App.checkPipelineReady();
-      if (typeof AIAssistant !== 'undefined') AIAssistant.updateIngestionProgress(3);
+      if (data.bank_card_update) {
+        const bCard = document.getElementById('card-step-bank');
+        const bankTag = bCard ? bCard.querySelector('.file-stats-tag') : null;
+        if (bankTag) {
+          bankTag.innerText = '⚡ Matching UTRs...';
+          bankTag.style.backgroundColor = '#fef3c7';
+          bankTag.style.color = '#d97706';
+        }
+
+        setTimeout(() => {
+          const bUp = data.bank_card_update;
+          const countEl = document.getElementById('stat-bank-count');
+          if (countEl) {
+            countEl.innerText = `${bUp.vouchers_count || 0} Vouchers`;
+          }
+          const closeEl = document.getElementById('stat-bank-closing');
+          if (closeEl) {
+            closeEl.innerText = `₹${Math.abs(bUp.closing_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} ${bUp.closing_balance_type || 'Cr'}`;
+            closeEl.style.color = bUp.is_closing_positive ? '#059669' : '#dc2626';
+          }
+          if (bankTag) {
+            bankTag.innerText = 'Gateway Reconciled';
+            bankTag.style.backgroundColor = '#ecfdf5';
+            bankTag.style.color = '#059669';
+          }
+
+          // Unlock Pipeline Ready
+          if (proceedBtn) {
+            proceedBtn.disabled = false;
+            proceedBtn.innerHTML = `<span>Proceed to 3-Way Reconciliation Matrix</span><span>➔</span>`;
+          }
+          App.checkPipelineReady();
+          if (typeof AIAssistant !== 'undefined') AIAssistant.updateIngestionProgress(3);
+        }, 700);
+      } else {
+        if (proceedBtn) {
+          proceedBtn.disabled = false;
+          proceedBtn.innerHTML = `<span>Proceed to 3-Way Reconciliation Matrix</span><span>➔</span>`;
+        }
+        App.checkPipelineReady();
+        if (typeof AIAssistant !== 'undefined') AIAssistant.updateIngestionProgress(3);
+      }
 
     } catch (e) {
       alert(`Network error uploading settlement CSV: ${e.message}`);

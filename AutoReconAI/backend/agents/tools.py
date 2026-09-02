@@ -833,6 +833,7 @@ class ReconToolbox:
         contracted_mdr = GatewayConfig.get_mdr_rate()
         gst_rate = GatewayConfig.get_gst_rate()
         tax_profile = GatewayConfig.get_merchant_tax_profile()
+        tds_rate_pct = GatewayConfig.get_tds_rate() * 100.0
 
         captured_settlements = [s for s in settlements if s.get("status") == "captured" and float(s.get("net_credit", 0.0)) > 0]
 
@@ -855,11 +856,11 @@ class ReconToolbox:
             "### 1. Section 194-O Statutory TDS Audit (Direct Income Tax)",
             "| Metric / Parameter | Value | Statutory Regulatory Reference | Accounting Ledger Routing |",
             "| :--- | :--- | :--- | :--- |",
-            f"| TDS Applicability Status | **{'ACTIVE (1.00% Withholding)' if is_tds_active else 'NOT APPLICABLE (0.00%)'}** | Section 194-O of Income Tax Act, 1961 | Form 26AS Tax Credit |",
+            f"| TDS Applicability Status | **{'ACTIVE (' + f'{tds_rate_pct:.2f}% Withholding)' if is_tds_active else 'NOT APPLICABLE (0.00%)'}** | Section 194-O of Income Tax Act, 1961 | Form 26AS Tax Credit |",
             f"| Merchant PAN Card | `{tax_profile['pan']}` | Section 206AA Verification | PAN Ledger Asset |",
             f"| Merchant GSTIN | `{tax_profile['gstin']}` | E-Commerce Operator Mandate | Statutory Tax Profile |",
             f"| Total Gross Sales Audited | ₹{total_gmv:,.2f} | 100% Captured Order GMV | Sales Revenue Account |",
-            f"| **Total Section 194-O TDS Withheld** | **₹{total_tds:,.2f}** | **1.00% Withheld by Gateway** | **TDS Receivable (Form 26AS Asset)** |"
+            f"| **Total Section 194-O TDS Withheld** | **₹{total_tds:,.2f}** | **{tds_rate_pct:.2f}% Withheld by Gateway** | **TDS Receivable (Form 26AS Asset)** |"
         ]
 
         # Table 2: GST Input Tax Credit (ITC) Statement & SLA Variance

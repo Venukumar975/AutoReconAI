@@ -48,7 +48,7 @@ AutoReconAI performs automated 3-way financial reconciliation across 3 core merc
 2. MDR Fee Overcharges: Gateway billed MDR fee rate exceeds contracted SLA in config.ini (100% claimable from Razorpay).
 3. Orphan Customer Refunds: Settlement contains customer refund deductions; non-reversed MDR+GST is unrecoverable fee leakage.
 4. Bank Chargeback Dispute Holds: Customer raised bank dispute; Razorpay debits GMV + ₹590 dispute penalty fee. (Action: PoD within 7 days).
-5. Section 194-O Statutory TDS: 1.00% advance income tax withheld by gateway on gross sales. (Action: Form 26AS credit).
+5. Section 194-O Statutory TDS: Advance income tax withheld by gateway on gross sales as per merchant tax profile (Action: Form 26AS credit).
 
 AVAILABLE TOOL REGISTRY (from tools_desc.json):
 {TOOLS_REGISTRY_STR}

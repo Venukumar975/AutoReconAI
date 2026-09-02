@@ -65,6 +65,36 @@ const SettlementUnpacker = (() => {
     const netPayout = p.net_bank_payout || 0;
     const netColor = netPayout >= 0 ? '#059669' : '#dc2626';
 
+    // Dynamic mathematical balance check
+    const mdrTotal = (p.contracted_base_mdr || 0) + (p.overcharged_mdr || 0);
+    const gstTotal = (p.contracted_base_gst || 0) + (p.overcharged_gst || 0);
+    const tdsTotal = p.total_tds_withheld || 0;
+    const refundTotal = p.customer_refund_gmv || 0;
+    const disputeTotal = (p.disputed_escrow_gmv || 0) + (p.dispute_penalties || 0);
+
+    const netRefundPortion = Math.max(0, refundTotal - (p.refund_fee_leakage || 0));
+    const refundFeePortion = p.refund_fee_leakage || 0;
+
+    const computedNet = (p.total_gmv || 0) - mdrTotal - gstTotal - tdsTotal - refundTotal - disputeTotal;
+    const diff = Math.abs(computedNet - netPayout);
+    const isBalanced = diff < 0.05;
+
+    // Dynamic Header Badge based on real calculation
+    const badgeEl = document.getElementById('eq-balanced-badge');
+    if (badgeEl) {
+      if (isBalanced) {
+        badgeEl.innerHTML = `✅ 100% Mathematically Balanced`;
+        badgeEl.style.backgroundColor = '#ecfdf5';
+        badgeEl.style.color = '#059669';
+        badgeEl.style.borderColor = '#a7f3d0';
+      } else {
+        badgeEl.innerHTML = `⚠️ Variance: ₹${formatInr(diff)}`;
+        badgeEl.style.backgroundColor = '#fef2f2';
+        badgeEl.style.color = '#dc2626';
+        badgeEl.style.borderColor = '#fecaca';
+      }
+    }
+
     const eqBox = document.getElementById('equation-formula-box');
     if (eqBox) {
       eqBox.innerHTML = `
@@ -73,8 +103,7 @@ const SettlementUnpacker = (() => {
         <span style="color: #dc2626; font-weight: 600;">(Contracted MDR ${fmtNum(p.contracted_base_mdr)} + Overcharged MDR ${fmtNum(p.overcharged_mdr)})</span> - 
         <span style="color: #dc2626; font-weight: 600;">(Contracted GST ${fmtNum(p.contracted_base_gst)} + Overcharged GST ${fmtNum(p.overcharged_gst)})</span> - 
         <span style="color: #dc2626; font-weight: 600;">TDS ${fmtNum(p.total_tds_withheld)}</span> - 
-        <span style="color: #dc2626; font-weight: 600;">Customer Refunds ${fmtNum(p.customer_refund_gmv)}</span> - 
-        <span style="color: #dc2626; font-weight: 600;">Refund Fee Leakage ${fmtNum(p.refund_fee_leakage)}</span> - 
+        <span style="color: #dc2626; font-weight: 600;">(Customer Refunds ${fmtNum(netRefundPortion)} + Refund Fee Leakage ${fmtNum(refundFeePortion)})</span> - 
         <span style="color: #dc2626; font-weight: 600;">Dispute Escrow ${fmtNum(p.disputed_escrow_gmv)}</span> - 
         <span style="color: #dc2626; font-weight: 600;">Dispute Penalties ${fmtNum(p.dispute_penalties)}</span>
       `;
@@ -82,9 +111,20 @@ const SettlementUnpacker = (() => {
 
     const calloutEl = document.getElementById('unpacker-recovery-callout');
     if (calloutEl) {
+      const hasClaim = (p.total_claimable_overcharges || 0) > 0;
+      const hasDispute = (p.disputed_escrow_gmv || 0) > 0;
       const claimStr = `<b style="color: #059669; font-family: 'JetBrains Mono', monospace; font-weight: 800;">₹${formatInr(p.total_claimable_overcharges)}</b>`;
       const disputeStr = `<b style="color: #059669; font-family: 'JetBrains Mono', monospace; font-weight: 800;">₹${formatInr(p.disputed_escrow_gmv)}</b>`;
-      calloutEl.innerHTML = `💡 You have ${claimStr} in claimable fee overcharges and ${disputeStr} in pending dispute escrow.`;
+
+      if (hasClaim && hasDispute) {
+        calloutEl.innerHTML = `💡 You have ${claimStr} in claimable fee overcharges and ${disputeStr} in pending dispute escrow.`;
+      } else if (hasClaim) {
+        calloutEl.innerHTML = `💡 You have ${claimStr} in claimable fee overcharges.`;
+      } else if (hasDispute) {
+        calloutEl.innerHTML = `💡 You have ${disputeStr} in pending dispute escrow.`;
+      } else {
+        calloutEl.innerHTML = `💡 All settlements are cleanly reconciled with zero pending recovery claims.`;
+      }
     }
 
     const potentialEl = document.getElementById('eq-potential-bank');
@@ -156,7 +196,8 @@ const SettlementUnpacker = (() => {
     const mdrRate = (data.contracted_sla?.mdr_percent || 2.0).toFixed(2);
     const gstRate = (data.contracted_sla?.gst_percent || 18.0).toFixed(2);
     const avgOverchargeRate = (p.avg_overcharged_mdr_percent || 2.70).toFixed(2);
-    const tdsRateText = (p.total_tds_withheld && p.total_tds_withheld > 0) ? '(1.00%)' : '(0.00%)';
+    const tdsRatePct = (p.total_gmv && p.total_gmv > 0) ? ((p.total_tds_withheld / p.total_gmv) * 100).toFixed(2) : '0.00';
+    const tdsRateText = `(${tdsRatePct}%)`;
 
     const chartLabels = [
       'Gross Sales (GMV)',
