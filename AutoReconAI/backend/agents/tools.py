@@ -768,16 +768,20 @@ class ReconToolbox:
 
         default_table_md = "\n".join(table_lines)
 
+        tot_penalties = round(total_dispute_fees + total_dispute_tax, 2)
+        tot_gmv = round(total_disputed_gmv, 2)
         defense_guidance = (
-            "Under Visa/Mastercard and RBI regulations, this amount has been placed on temporary hold following a customer-initiated bank chargeback. "
-            "If these orders were legitimately fulfilled and delivered, submit your Proof of Delivery (Courier AWB tracking & Tax Invoice) to Razorpay Merchant Support "
-            "within the 7-day SLA window to contest and recover the funds."
+            f"Under Visa/Mastercard and RBI regulations, order GMV of INR {tot_gmv:,.2f} is placed on temporary hold. "
+            f"Submitting valid Proof of Delivery (Courier AWB & Invoice) within 7 days will release the Disputed GMV (INR {tot_gmv:,.2f}) back to your bank account. "
+            f"However, the Dispute Handling Fees of INR {tot_penalties:,.2f} (INR 590.00 per dispute) are mandatory card network processing fees and are PERMANENTLY NON-REFUNDABLE."
         )
 
         return {
             "total_chargeback_orders": len(chargebacks_list),
-            "total_disputed_gmv_inr": round(total_disputed_gmv, 2),
-            "total_dispute_penalty_inr": round(total_dispute_fees + total_dispute_tax, 2),
+            "total_disputed_gmv_inr": tot_gmv,
+            "total_dispute_penalty_inr": tot_penalties,
+            "recoverable_upon_winning_inr": tot_gmv,
+            "permanent_penalty_loss_inr": tot_penalties,
             "total_escrow_debit_inr": round(total_escrow_held, 2),
             "default_table_md": default_table_md,
             "defense_guidance": defense_guidance,

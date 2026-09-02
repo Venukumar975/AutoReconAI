@@ -73,7 +73,11 @@ PRESENTATION & LAYOUT GUIDELINES:
        | Date | Order ID | Dispute Payment ID | Settlement UTR | Disputed Order GMV (INR) | Dispute Handling Fee (INR) | GST on Fee (18%) (INR) | Total Escrow Debit (INR) |
      * Include the total summary row at the bottom.
      * Immediately below the table, synthesize a professional financial defense statement:
-       Explain that under card scheme regulations, funds are debited on temporary hold. Advise the merchant to upload Proof of Delivery (courier AWB tracking & tax invoice) to Razorpay Support within the 7-day SLA window to contest and recover the held funds.
+        1. Advise the merchant to upload Proof of Delivery (courier AWB tracking & tax invoice) to Razorpay Support within the 7-day SLA window to contest and recover the Disputed Order GMV (₹[total_disputed_gmv_inr]).
+        2. Explicitly state that Dispute Handling Fees (₹500 + 18% GST = ₹590 per dispute, total ₹[total_dispute_penalty_inr]) are mandatory card network processing charges and are PERMANENTLY NON-REFUNDABLE even upon winning the dispute.
+        3. When asked for post-recovery net bank credits:
+           Final Realized Cash = Current Net Bank Deposits + Recovered Disputed GMV (₹[total_disputed_gmv_inr]) + Claimable MDR Overcharges (₹[total_overcharge_cash]).
+           (Do NOT add dispute handling fees back to the payout).
 
    - TEMPLATE 4: Statutory Section 194-O TDS & GST Input Tax Credit Statement (`#section_194o_tds` or `#gst_itc` or when asked for TDS / ITC tax breakdown):
      * If TDS is active: Output the Section 194-O TDS Breakdown Table (Order ID, Settlement UTR, Date, Gross GMV, 1% TDS, Form 26AS Ledger) AND the GST Input Tax Credit (ITC) on Gateway MDR Table.
@@ -86,10 +90,10 @@ PRESENTATION & LAYOUT GUIDELINES:
       * Format a comprehensive summary table covering all 5 commercial edge cases:
         | # | Mismatch Category | Affected Count | Sample Order IDs | Money Lost? (Yes/No) | Lost Amount (INR) | Recoverable / Held / Frozen Amount (INR) | AI Controller Action |
       * List all 5 categories:
-        1. Fee Overcharges (Money Lost: Yes | Recoverable: Yes)
+        1. Fee Overcharges (Money Lost: Yes | Recoverable: Yes | Recoverable Amount: ₹[total_overcharge_cash])
         2. Dropped Webhooks (Money Lost: No | Safe: INR 0.00)
         3. Orphan Customer Refunds (Money Lost: Yes (Fee Leakage) | Unrecoverable: INR 0.00)
-        4. Bank Chargeback Holds (Money Lost: Pending | Held in Escrow)
+        4. Bank Chargeback Holds (Money Lost: Yes (Penalty Fees: ₹[total_dispute_penalty_inr]) | Recoverable GMV: ₹[total_disputed_gmv_inr] (Held in Escrow))
         5. Section 194-O TDS (Money Lost: No | Tax Asset Credit)
       * Follow with total GMV, Total Gateway Fees, Total GST, Total TDS, Total Bank Deposit, Match Rate, and executive financial recommendations.
 

@@ -59,14 +59,16 @@
     },
     {
       "function_name": "audit_chargeback_holds",
-      "description": "Audits all customer bank chargeback dispute holds and escrow deductions (Edge Case 4). Strictly identifies bank dispute IDs (disp_xxxx), disputed order GMV on escrow hold, INR 500.00 dispute handling fee, INR 90.00 GST (18%), total escrow debit, customer name, payment timestamp, and required Proof of Delivery (PoD) defense actions within the 7-day SLA window. Fully recoverable upon submitting courier AWB tracking & tax invoice.",
+      "description": "Audits all customer bank chargeback dispute holds and escrow deductions (Edge Case 4). Strictly identifies bank dispute IDs (disp_xxxx), disputed order GMV on escrow hold, INR 500.00 dispute handling fee, INR 90.00 GST (18%), and total escrow debit. IMPORTANT: Upon winning a dispute with Proof of Delivery (PoD), ONLY the Disputed Order GMV (total_disputed_gmv_inr) is refunded back to the merchant's bank account; the Dispute Handling & Penalty Fee (total_dispute_penalty_inr) is a mandatory card scheme representation fee retained by Visa/Mastercard and is PERMANENTLY NON-REFUNDABLE.",
       "required_data_sources": ["razorpay_settlement_recon.csv", "store_orders.csv (customer lookup)"],
       "inputs": {},
       "output_fields": {
         "total_chargeback_orders": "Count of orders under active chargeback dispute",
-        "total_disputed_gmv_inr": "Total original order GMV placed on hold in escrow",
-        "total_dispute_penalty_inr": "Total penalty fees charged by gateway (INR 500 fee + INR 90 GST per dispute)",
-        "total_escrow_debit_inr": "Total funds debited from merchant payout into temporary dispute escrow",
+        "total_disputed_gmv_inr": "Total original order GMV placed on hold in escrow (100% Recoverable upon winning dispute with PoD)",
+        "total_dispute_penalty_inr": "Total penalty fees charged by gateway (INR 500 fee + INR 90 GST per dispute, PERMANENTLY NON-REFUNDABLE)",
+        "recoverable_upon_winning_inr": "Disputed order GMV that is credited back to bank upon winning dispute with PoD",
+        "permanent_penalty_loss_inr": "Mandatory dispute handling fees that are permanently retained by card schemes even upon winning",
+        "total_escrow_debit_inr": "Total combined debit deducted from settlement (Disputed GMV + Penalties)",
         "defense_guidance": "Official compliance guidance for submitting courier AWB tracking and tax invoice within 7 days",
         "chargeback_details": "Itemized list of dispute records with date, order_id, customer_name, payment_id, settlement_utr, disputed_order_amount, dispute_fee, dispute_tax, total_penalty_fee, and total_escrow_debit",
         "default_table_md": "Pre-formatted Markdown table of bank dispute holds with bottom summary row"
