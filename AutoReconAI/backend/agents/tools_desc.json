@@ -16,7 +16,8 @@
         "total_gst_inr": "Total 18% GST charged on MDR fees",
         "total_tds_inr": "Total Section 194-O TDS withheld by gateway",
         "total_bank_deposited_inr": "Total net cash deposited into bank account",
-        "mismatch_categories": "Dictionary of 5 mismatch categories with counts, sample order IDs, and cash amounts",
+        "mismatch_categories": "Dictionary of 5 mismatch categories with counts, sample order IDs, fee losses, and dispute GMV vs penalty splits",
+        "financial_recovery_summary": "Pre-calculated dictionary with current net bank cash, claimable MDR refunds, recoverable dispute GMV, non-refundable penalty loss, refund fee leakage, and final post-recovery net bank credit",
         "default_table_md": "Pre-formatted Markdown string containing the Master 5-Way Financial Recovery & Mismatch Summary Table"
       }
     },

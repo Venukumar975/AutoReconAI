@@ -59,6 +59,8 @@ class ReconToolbox:
 
         total_overcharge_cash = 0.0
         total_chargeback_debit = 0.0
+        total_disputed_gmv = 0.0
+        total_dispute_penalties = 0.0
 
         for s in settlements:
             oid = s["order_id"]
@@ -92,6 +94,8 @@ class ReconToolbox:
             if status_val == "dispute_hold" or txn_type == "dispute_hold" or pid.startswith("disp_"):
                 chargeback_holds.append(oid)
                 total_chargeback_debit += abs(net_credit)
+                total_disputed_gmv += amount
+                total_dispute_penalties += (fee + tax)
 
             # 4. Orphan customer refunds (Prior-period return deductions or negative refunds)
             elif status_val == "refunded" or txn_type == "refund" or pid.startswith("rfnd_") or (oid not in orders_by_id and net_credit < 0):
@@ -106,24 +110,33 @@ class ReconToolbox:
         matched_count = max(0, total_settlement_txns - mismatched_count)
         match_rate = round((matched_count / max(total_settlement_txns, 1)) * 100, 1)
 
-        # Calculate refund fee leakage for orphan customer refunds
+        # Calculate refund fee leakage strictly across actual refund entries
         total_orphan_refund_fee_loss = 0.0
         for s in settlements:
-            oid = s["order_id"]
+            status_val = str(s.get("status", "")).lower()
+            txn_type = str(s.get("type", "")).lower()
             pid = str(s.get("payment_id", ""))
-            if oid in orphan_refunds and not pid.startswith("disp_"):
+            oid = str(s.get("order_id", ""))
+            if status_val == "dispute_hold" or txn_type == "dispute_hold" or pid.startswith("disp_"):
+                continue
+            if txn_type == "refund" or status_val == "refunded" or pid.startswith("rfnd_") or oid.startswith("ORD_PRIOR_") or (oid not in orders_by_id and float(s.get("net_credit", 0.0)) < 0):
                 fee = float(s.get("fee", 0.0))
                 tax = float(s.get("tax", 0.0))
-                total_orphan_refund_fee_loss += (fee + tax)
+                total_orphan_refund_fee_loss += round(fee + tax, 2)
+
+        tot_gmv_rec = round(total_disputed_gmv, 2)
+        tot_pen_loss = round(total_dispute_penalties, 2)
+        tot_overcharge_rec = round(total_overcharge_cash, 2)
+        final_post_recovery_cash = round(total_bank_deposited + tot_overcharge_rec + tot_gmv_rec, 2)
 
         # Pre-format Master 5-Way Mismatch Summary Table (Template 5)
         summary_table_lines = [
             "| # | Mismatch Category | Affected Count | Sample Order IDs | Money Lost? (Yes/No) | Lost Amount (INR) | Recoverable / Held / Frozen Amount (INR) | AI Controller Action |",
             "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
-            f"| 1 | Fee Overcharges | {len(set(fee_overcharges))} | {', '.join(sorted(list(set(fee_overcharges)))[:4]) or '-'} | Yes | ₹{total_overcharge_cash:,.2f} | ₹{total_overcharge_cash:,.2f} (Recoverable) | Auto-draft Razorpay SLA dispute ticket |",
+            f"| 1 | Fee Overcharges | {len(set(fee_overcharges))} | {', '.join(sorted(list(set(fee_overcharges)))[:4]) or '-'} | Yes | ₹{tot_overcharge_rec:,.2f} | ₹{tot_overcharge_rec:,.2f} (Recoverable) | Auto-draft Razorpay SLA dispute ticket |",
             f"| 2 | Dropped Webhooks | {len(set(dropped_webhooks))} | {', '.join(sorted(list(set(dropped_webhooks)))[:4]) or '-'} | No | - | ₹0.00 (Safe) | Manually fulfill pending order in store dashboard |",
             f"| 3 | Orphan Customer Refunds | {len(set(orphan_refunds))} | {', '.join(sorted(list(set(orphan_refunds)))[:4]) or '-'} | Yes (Fee Leakage) | ₹{total_orphan_refund_fee_loss:,.2f} | ₹0.00 (Unrecoverable) | Post internal journal to Returns & Allowances ledger |",
-            f"| 4 | Bank Chargeback Holds | {len(set(chargeback_holds))} | {', '.join(sorted(list(set(chargeback_holds)))[:4]) or '-'} | Pending | - | ₹{total_chargeback_debit:,.2f} (Held in Escrow) | Submit Proof of Delivery (PoD) within 7 days |",
+            f"| 4 | Bank Chargeback Holds | {len(set(chargeback_holds))} | {', '.join(sorted(list(set(chargeback_holds)))[:4]) or '-'} | Yes (Penalty: ₹{tot_pen_loss:,.2f}) | ₹{tot_pen_loss:,.2f} (Penalty Loss) | ₹{tot_gmv_rec:,.2f} (Held in Escrow) | Submit Proof of Delivery (PoD) within 7 days |",
             f"| 5 | Section 194-O TDS | {len(set(tds_orders))} | {('All Captured Orders' if len(tds_orders) > 0 else 'None (Disabled)')} | No | - | ₹{total_tds:,.2f} (Tax Asset Credit) | Reconcile in Form 26AS / Annual ITR filing |"
         ]
 
@@ -140,6 +153,14 @@ class ReconToolbox:
             "mismatched_transactions_count": mismatched_count,
             "contracted_sla_terms": GatewayConfig.get_sla_text(),
             "default_table_md": "\n".join(summary_table_lines),
+            "financial_recovery_summary": {
+                "current_net_bank_deposited_inr": round(total_bank_deposited, 2),
+                "claimable_mdr_overcharge_refund_inr": tot_overcharge_rec,
+                "recoverable_disputed_gmv_inr": tot_gmv_rec,
+                "permanent_dispute_penalty_loss_inr": tot_pen_loss,
+                "permanent_refund_fee_loss_inr": round(total_orphan_refund_fee_loss, 2),
+                "final_realized_net_bank_cash_post_recovery_inr": final_post_recovery_cash
+            },
             "mismatch_categories": {
                 "dropped_webhooks": {
                     "count": len(set(dropped_webhooks)),
@@ -148,16 +169,19 @@ class ReconToolbox:
                 "fee_overcharges": {
                     "count": len(set(fee_overcharges)),
                     "order_ids": sorted(list(set(fee_overcharges))),
-                    "recoverable_cash_inr": round(total_overcharge_cash, 2)
+                    "recoverable_cash_inr": tot_overcharge_rec
                 },
                 "orphan_refunds": {
                     "count": len(set(orphan_refunds)),
-                    "order_ids": sorted(list(set(orphan_refunds)))
+                    "order_ids": sorted(list(set(orphan_refunds))),
+                    "unreversed_fee_loss_inr": round(total_orphan_refund_fee_loss, 2)
                 },
                 "chargeback_holds": {
                     "count": len(set(chargeback_holds)),
                     "order_ids": sorted(list(set(chargeback_holds))),
-                    "held_amount_inr": round(total_chargeback_debit, 2)
+                    "held_amount_inr": round(total_chargeback_debit, 2),
+                    "disputed_gmv_held_inr": tot_gmv_rec,
+                    "dispute_penalties_loss_inr": tot_pen_loss
                 },
                 "section_194o_tds": {
                     "count": len(set(tds_orders)),
@@ -473,7 +497,9 @@ class ReconToolbox:
                 "dispute_gst": dispute_tax,
                 "total_penalty_fee": dispute_fee + dispute_tax,
                 "total_escrow_debit_inr": abs(dispute_escrow_debit),
-                "action_required": "Submit Proof of Delivery (AWB tracking + Invoice) within 7-day SLA window to recover held funds." if is_chargeback else "None"
+                "recoverable_gmv_upon_winning_inr": dispute_gmv if is_chargeback else 0.0,
+                "permanent_penalty_loss_inr": (dispute_fee + dispute_tax) if is_chargeback else 0.0,
+                "action_required": f"Submit Proof of Delivery (AWB tracking + Invoice) within 7-day SLA window to recover held Disputed GMV (₹{dispute_gmv:,.2f}). Dispute handling fee (₹{dispute_fee+dispute_tax:,.2f}) is permanently non-refundable." if is_chargeback else "None"
             },
             "financial_audit_diagnosis": {
                 "is_chargeback_hold": is_chargeback,
@@ -483,6 +509,8 @@ class ReconToolbox:
                 "contracted_sla_rate": GatewayConfig.get_sla_text(),
                 "overcharge_amount_inr": round(overcharge_amount, 2),
                 "escrow_held_amount_inr": round(abs(dispute_escrow_debit), 2) if is_chargeback else 0.0,
+                "recoverable_dispute_gmv_inr": round(dispute_gmv, 2) if is_chargeback else 0.0,
+                "permanent_dispute_penalty_inr": round(dispute_fee + dispute_tax, 2) if is_chargeback else 0.0,
                 "diagnosis_summary": " | ".join(diagnosis_parts),
                 "recommended_action": diagnosis_parts[0]
             }
