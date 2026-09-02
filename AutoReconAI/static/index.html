@@ -370,121 +370,21 @@
             </div>
 
             <!-- 3. Master Reconciliation Equation Formula & Recovery Upside -->
-            <div class="unpacker-equation-card" style="background: #0f172a; border-radius: 12px; padding: 18px 24px; color: #ffffff; margin-bottom: 20px; border-left: 5px solid #10b981; box-shadow: 0 4px 14px rgba(0,0,0,0.15);">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <span style="font-weight: 700; font-size: 15px; color: #38bdf8; display: flex; align-items: center; gap: 8px;">
+            <div class="unpacker-equation-card" style="background: #ffffff; border-radius: 12px; padding: 20px 24px; color: #0f172a; margin-bottom: 20px; border: 1px solid #e2e8f0; border-left: 5px solid #10b981; box-shadow: 0 4px 14px rgba(0,0,0,0.05);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <span style="font-weight: 700; font-size: 15px; color: #0f172a; display: flex; align-items: center; gap: 8px;">
                   <span>🧮</span> Master Settlement Reconciliation Equation
                 </span>
-                <span style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 9999px; border: 1px solid rgba(16, 185, 129, 0.4);">
+                <span style="background: #ecfdf5; color: #059669; font-weight: 700; font-size: 12px; padding: 4px 12px; border-radius: 9999px; border: 1px solid #a7f3d0;">
                   ✅ 100% Mathematically Balanced
                 </span>
               </div>
-              <div style="font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6; color: #cbd5e1; background: #1e293b; padding: 12px 16px; border-radius: 8px; overflow-x: auto;">
-                <span style="color: #34d399; font-weight: 700;">Net Bank Deposited</span> = 
-                <span style="color: #60a5fa;">Gross Sales</span> - 
-                <span style="color: #fbbf24;">(Contracted MDR + Overcharged MDR)</span> - 
-                <span style="color: #c084fc;">(Contracted GST + Overcharged GST)</span> - 
-                <span style="color: #818cf8;">TDS (1%)</span> - 
-                <span style="color: #f43f5e;">Customer Refunds</span> - 
-                <span style="color: #e11d48;">Refund Fee Leakage</span> - 
-                <span style="color: #fb923c;">Dispute Escrow</span> - 
-                <span style="color: #f87171;">Dispute Penalties</span>
+              <div id="equation-formula-box" style="font-family: 'JetBrains Mono', monospace; font-size: 13.5px; line-height: 1.8; color: #334155; background: #f8fafc; padding: 14px 18px; border-radius: 8px; border: 1px solid #e2e8f0; overflow-x: auto; word-break: keep-all;">
+                <!-- Populated dynamically with exact numbers and green/red colors by settlement_unpacker.js -->
               </div>
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; font-size: 13px; color: #94a3b8;">
-                <span id="unpacker-recovery-callout">💡 You have <b style="color: #f87171;" id="eq-claimable-overcharge">₹0.00</b> in claimable fee overcharges and <b style="color: #fb923c;" id="eq-recoverable-dispute">₹0.00</b> in pending dispute escrow.</span>
-                <span style="color: #34d399; font-weight: 700;">Potential Realized Bank Cash: <span id="eq-potential-bank">₹0.00</span></span>
-              </div>
-            </div>
-
-            <!-- 4. Core Pillars Grid -->
-            <div class="unpacker-pillars-grid">
-              <div class="pillar-card gmv">
-                <span class="pillar-label">💰 Gross Sales (GMV)</span>
-                <span class="pillar-amount" id="unpacker-gmv">₹0.00</span>
-                <span class="pillar-subtext">Total customer checkout value across all verified orders (100%)</span>
-              </div>
-              <div class="pillar-card payout">
-                <span class="pillar-label">🏦 Net Bank Deposited</span>
-                <span class="pillar-amount" id="unpacker-payout">₹0.00</span>
-                <span class="pillar-subtext" id="unpacker-payout-sub">Actual settled cash credited into your bank account</span>
-              </div>
-              <div class="pillar-card mdr">
-                <span class="pillar-label">⚡ Contracted MDR Expense</span>
-                <span class="pillar-amount" id="unpacker-mdr">₹0.00</span>
-                <span class="pillar-subtext" id="unpacker-mdr-sub">Interchange fee retained by Razorpay under SLA</span>
-              </div>
-              <div class="pillar-card gst">
-                <span class="pillar-label">🏛️ Claimable 18% GST (ITC)</span>
-                <span class="pillar-amount" id="unpacker-gst">₹0.00</span>
-                <span class="pillar-subtext">100% Tax Credit claimable in GSTR-3B Table 4(A)(5)</span>
-                <span class="pillar-badge">⚡ Tax Deductible</span>
-              </div>
-              <div class="pillar-card refund-loss" style="border-top: 4px solid #e11d48; background: linear-gradient(135deg, #ffffff 0%, #fff1f2 100%);">
-                <span class="pillar-label" style="color: #be123c;">💸 Non-Recoverable Refund Loss</span>
-                <span class="pillar-amount" id="unpacker-refund-loss" style="color: #be123c;">₹0.00</span>
-                <span class="pillar-subtext">Un-reversed MDR + GST fee leakage retained on customer returns</span>
-                <span class="pillar-badge" style="background: #ffe4e6; color: #be123c;">⚠️ Retained Fee Loss</span>
-              </div>
-            </div>
-
-            <!-- Proportional Visual Flow Bar -->
-            <div class="unpacker-flow-container">
-              <div class="flow-header">
-                <span class="flow-title">⚖️ Proportional Revenue Split (Per ₹100 of Gross Sales = Exactly ₹100.00)</span>
-                <span style="font-size: 13px; color: #64748b;" id="flow-take-rate-text">Effective Gateway Take-Rate: 2.96%</span>
-              </div>
-              <div class="flow-bar">
-                <div class="flow-segment net" id="flow-net" style="width: 93.64%;" title="Net Deposited"></div>
-                <div class="flow-segment mdr" id="flow-mdr" style="width: 2.51%;" title="MDR Expense"></div>
-                <div class="flow-segment gst" id="flow-gst" style="width: 0.45%;" title="GST ITC"></div>
-                <div class="flow-segment refunds" id="flow-refunds" style="width: 3.40%;" title="Customer Refunds"></div>
-                <div class="flow-segment loss" id="flow-loss" style="width: 0.04%; background: #e11d48;" title="Un-Reversed Refund Loss"></div>
-              </div>
-              <div class="flow-legend">
-                <div class="legend-item"><div class="legend-dot net"></div><span id="legend-net-label">Net Bank Payout: 93.64%</span></div>
-                <div class="legend-item"><div class="legend-dot mdr"></div><span id="legend-mdr-label">Gateway MDR Fee: 2.51%</span></div>
-                <div class="legend-item"><div class="legend-dot gst"></div><span id="legend-gst-label">Claimable GST ITC: 0.45%</span></div>
-                <div class="legend-item"><div class="legend-dot refunds"></div><span id="legend-refunds-label">Customer Refunds: 3.40%</span></div>
-                <div class="legend-item"><div class="legend-dot loss" style="background: #e11d48;"></div><span id="legend-loss-label">Un-Reversed Refund Loss: 0.04%</span></div>
-              </div>
-            </div>
-
-            <!-- 4. Order Categorization & Edge Case Buckets -->
-            <div class="unpacker-buckets-grid">
-              <div class="bucket-card">
-                <div class="bucket-header">
-                  <span class="bucket-title">⚠️ MDR Overcharges</span>
-                  <span class="bucket-badge overcharge" id="bucket-overcharge-count">0 Orders</span>
-                </div>
-                <div class="bucket-content">
-                  <p id="bucket-overcharge-desc">Gateway billed higher rates than contracted SLA.</p>
-                  <p style="font-weight: 700; color: #dc2626; margin-top: 4px;" id="bucket-overcharge-claim">Claimable Cash: ₹0.00</p>
-                </div>
-                <div class="bucket-order-tags" id="bucket-overcharge-tags"></div>
-              </div>
-
-              <div class="bucket-card">
-                <div class="bucket-header">
-                  <span class="bucket-title">⏳ Dropped Webhooks</span>
-                  <span class="bucket-badge webhook" id="bucket-webhook-count">0 Orders</span>
-                </div>
-                <div class="bucket-content">
-                  <p>Payments captured & settled, but store order status stuck in PENDING.</p>
-                  <p style="font-weight: 600; color: #d97706; margin-top: 4px;">Action: Safe to fulfill customer orders.</p>
-                </div>
-                <div class="bucket-order-tags" id="bucket-webhook-tags"></div>
-              </div>
-
-              <div class="bucket-card">
-                <div class="bucket-header">
-                  <span class="bucket-title">🔄 Prior-Period Returns</span>
-                  <span class="bucket-badge orphan" id="bucket-orphan-count">0 Orders</span>
-                </div>
-                <div class="bucket-content">
-                  <p>Previous cycle customer return refunds deducted from today's payout.</p>
-                  <p style="font-weight: 600; color: #2563eb; margin-top: 4px;" id="bucket-orphan-deduction">Total Deductions: ₹0.00</p>
-                </div>
-                <div class="bucket-order-tags" id="bucket-orphan-tags"></div>
+              <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; font-size: 13.5px;">
+                <span id="unpacker-recovery-callout" style="color: #475569;">💡 You have <b style="color: #dc2626;" id="eq-claimable-overcharge">₹0.00</b> in claimable fee overcharges and <b style="color: #ea580c;" id="eq-recoverable-dispute">₹0.00</b> in pending dispute escrow.</span>
+                <span style="color: #059669; font-weight: 700; font-size: 14px;">Potential Realized Bank Cash: <span id="eq-potential-bank">₹0.00</span></span>
               </div>
             </div>
 

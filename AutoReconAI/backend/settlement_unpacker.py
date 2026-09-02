@@ -183,6 +183,9 @@ class SettlementUnpackerEngine:
         total_dispute_deductions = round(total_disputed_escrow_gmv + total_dispute_penalties, 2)
         total_refund_deductions = round(total_customer_refund_gmv, 2)
 
+        overcharge_rates = [float(o["billed_rate"].replace("%", "")) for o in overcharge_orders if "billed_rate" in o]
+        avg_overcharged_mdr_rate = round(sum(overcharge_rates) / len(overcharge_rates), 2) if overcharge_rates else round(contracted_mdr_rate * 100.0, 2)
+
         # Proportions
         pct_net_payout = round((net_bank_payout / gmv_base) * 100.0, 2)
         pct_tds = round((total_tds_withheld / gmv_base) * 100.0, 2)
@@ -236,6 +239,7 @@ class SettlementUnpackerEngine:
                 "total_tds_withheld": round(total_tds_withheld, 2),
                 "contracted_base_mdr": round(contracted_base_mdr, 2),
                 "overcharged_mdr": round(overcharged_mdr, 2),
+                "avg_overcharged_mdr_percent": avg_overcharged_mdr_rate,
                 "total_mdr_expense": round(total_mdr_expense, 2),
                 "contracted_base_gst": round(contracted_base_gst, 2),
                 "overcharged_gst": round(overcharged_gst, 2),
@@ -301,6 +305,7 @@ class SettlementUnpackerEngine:
                 }
             },
             "executive_summary": ai_response.get("executive_summary", ""),
+            "recovery_advisory": ai_response.get("recovery_advisory", ""),
             "financial_faqs": ai_response.get("financial_faqs", []),
             "generated_by": "TaxOptimizerAI"
         }

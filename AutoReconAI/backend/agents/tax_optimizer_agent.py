@@ -30,7 +30,7 @@ YOUR MISSION:
 You are provided with 100% verified, mathematically exact payment gateway settlement metrics unpacked from the merchant's store orders, settlement ledger, and bank statement.
 
 Analyze the verified metrics and generate:
-1. An executive financial assessment summarizing gateway fee efficiency, net cash realization, and GST tax credit yield.
+1. An executive financial assessment ("executive_summary") summarizing gateway fee efficiency, net cash realization, and GST tax credit yield.
 2. Exactly 4 dynamic, highly relevant financial questions and detailed, actionable advisory answers formatted for corporate finance teams:
    - Question 1: Specific guidance on claiming the exact 18% GST Input Tax Credit (ITC) under Section 16 of the CGST Act in monthly GSTR-3B (Table 4A) filings.
    - Question 2: Evaluation of actual gateway take-rate vs contracted SLA benchmark, highlighting any fee leakage.
@@ -73,6 +73,13 @@ class TaxOptimizerAI:
         """
         api_key = os.getenv("GEMINI_API_KEY", "")
         
+        claim_inr = unpacked_facts.get('claimable_overcharges_total', 0.0) or unpacked_facts.get('overcharge_claim_inr', 0.0)
+        escrow_inr = unpacked_facts.get('disputed_escrow_gmv', 0.0)
+        potential_inr = unpacked_facts.get('potential_recovered_payout', 0.0)
+        overcharge_count = unpacked_facts.get('overcharge_orders_count', 0)
+        dispute_count = unpacked_facts.get('dispute_orders_count', 0)
+        webhook_count = unpacked_facts.get('dropped_webhooks_count', 0)
+
         # Format verified facts into prompt context
         facts_summary = f"""
 VERIFIED FINANCIAL SETTLEMENT METRICS:
@@ -82,8 +89,10 @@ VERIFIED FINANCIAL SETTLEMENT METRICS:
 - Gateway MDR Processing Expense: INR {unpacked_facts.get('total_mdr_expense', 0.0):,.2f} ({unpacked_facts.get('mdr_pct', 0.0):.2f}% of GMV)
 - Claimable 18% GST Input Tax Credit (ITC): INR {unpacked_facts.get('total_gst_itc', 0.0):,.2f} ({unpacked_facts.get('gst_pct', 0.0):.2f}% of GMV)
 - Overall Effective Gateway Take-Rate: {unpacked_facts.get('effective_take_rate', 0.0):.2f}%
-- Fee Overcharges Detected: {unpacked_facts.get('overcharge_orders_count', 0)} orders (Total Claimable Cash: INR {unpacked_facts.get('overcharge_claim_inr', 0.0):,.2f})
-- Dropped Webhooks: {unpacked_facts.get('dropped_webhooks_count', 0)} orders (Payments captured in gateway, store status PENDING)
+- Claimable MDR Overcharges: INR {claim_inr:,.2f} ({overcharge_count} orders)
+- Disputed Order GMV Held in Escrow: INR {escrow_inr:,.2f} ({dispute_count} orders)
+- Potential Maximum Realized Cash (Post-Recovery): INR {potential_inr:,.2f}
+- Dropped Webhooks: {webhook_count} orders (Payments captured in gateway, store status PENDING)
 - Prior-Period Return Deductions: {unpacked_facts.get('orphan_refunds_count', 0)} orders (Total Netting: INR {unpacked_facts.get('orphan_refunds_amount', 0.0):,.2f})
 """
 
@@ -108,23 +117,31 @@ VERIFIED FINANCIAL SETTLEMENT METRICS:
                         if "financial_faqs" in parsed and isinstance(parsed["financial_faqs"], list):
                             return {
                                 "executive_summary": parsed.get("executive_summary", "Settlement batch successfully unpacked and verified."),
+                                "recovery_advisory": parsed.get("recovery_advisory", ""),
                                 "financial_faqs": parsed["financial_faqs"],
                                 "generated_by": "TaxOptimizerAI (Live Gemini Generative Synthesis)"
                             }
                 except Exception as e:
                     continue
 
-        # Deterministic Domain Fallback (Exact math, zero template breakdown)
+        # Deterministic Domain Fallback (Adaptive conditional logic, zero static hardcoding)
         total_gmv = unpacked_facts.get('total_gmv', 0.0)
         total_gst = unpacked_facts.get('total_gst_itc', 0.0)
         total_mdr = unpacked_facts.get('total_mdr_expense', 0.0)
         take_rate = unpacked_facts.get('effective_take_rate', 0.0)
-        claim_inr = unpacked_facts.get('overcharge_claim_inr', 0.0)
-        overcharge_count = unpacked_facts.get('overcharge_orders_count', 0)
-        webhook_count = unpacked_facts.get('dropped_webhooks_count', 0)
+
+        if claim_inr > 0 and escrow_inr > 0:
+            rec_advisory = f"💡 You have claimable fee overcharges of INR {claim_inr:,.2f} and pending dispute escrow of INR {escrow_inr:,.2f}."
+        elif claim_inr > 0:
+            rec_advisory = f"💡 You have claimable fee overcharges of INR {claim_inr:,.2f} across {overcharge_count} orders."
+        elif escrow_inr > 0:
+            rec_advisory = f"💡 You have pending dispute escrow of INR {escrow_inr:,.2f} across {dispute_count} orders."
+        else:
+            rec_advisory = "💡 All settlements are 100% reconciled with zero pending recovery claims."
 
         return {
             "executive_summary": f"Unpacked INR {total_gmv:,.2f} in gross sales yielding INR {unpacked_facts.get('net_bank_payout', 0.0):,.2f} in net bank deposits. Effective gateway take-rate stands at {take_rate:.2f}%, generating INR {total_gst:,.2f} in verified claimable GST Input Tax Credit.",
+            "recovery_advisory": rec_advisory,
             "financial_faqs": [
                 {
                     "question": "1. How do I claim the 18% GST Input Tax Credit (ITC) in my tax filings?",

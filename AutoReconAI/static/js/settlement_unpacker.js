@@ -39,11 +39,9 @@ const SettlementUnpacker = (() => {
         return;
       }
 
-      renderPillars(data);
       renderExecutiveSummary(data);
       renderFinancialChart(data);
-      renderFlowBar(data);
-      renderBuckets(data);
+      renderEquation(data);
       renderFAQs(data);
 
       // Hide skeleton & show content
@@ -59,45 +57,40 @@ const SettlementUnpacker = (() => {
     }
   }
 
-  function renderPillars(data) {
+  function renderEquation(data) {
     const p = data.unpacked_pillars || {};
-    const sla = data.contracted_sla || {};
-
     const formatInr = (val) => (val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtNum = (val) => `<span style="color: #0f172a; font-family: 'JetBrains Mono', 'SF Pro Display', monospace; font-weight: 800;">₹${formatInr(val)}</span>`;
 
-    const slaEl = document.getElementById('unpacker-sla-text');
-    if (slaEl) slaEl.innerText = `Contracted SLA: ${sla.sla_text || '2.20% MDR + 18.30% GST'}`;
+    const netPayout = p.net_bank_payout || 0;
+    const netColor = netPayout >= 0 ? '#059669' : '#dc2626';
 
-    const gmvEl = document.getElementById('unpacker-gmv');
-    if (gmvEl) gmvEl.innerText = `₹${formatInr(p.total_gmv)}`;
+    const eqBox = document.getElementById('equation-formula-box');
+    if (eqBox) {
+      eqBox.innerHTML = `
+        <span style="color: ${netColor}; font-weight: 700;">Net Bank Deposited (${fmtNum(netPayout)})</span> = 
+        <span style="color: #059669; font-weight: 600;">Gross Sales (${fmtNum(p.total_gmv)})</span> - 
+        <span style="color: #dc2626; font-weight: 600;">(Contracted MDR ${fmtNum(p.contracted_base_mdr)} + Overcharged MDR ${fmtNum(p.overcharged_mdr)})</span> - 
+        <span style="color: #dc2626; font-weight: 600;">(Contracted GST ${fmtNum(p.contracted_base_gst)} + Overcharged GST ${fmtNum(p.overcharged_gst)})</span> - 
+        <span style="color: #dc2626; font-weight: 600;">TDS ${fmtNum(p.total_tds_withheld)}</span> - 
+        <span style="color: #dc2626; font-weight: 600;">Customer Refunds ${fmtNum(p.customer_refund_gmv)}</span> - 
+        <span style="color: #dc2626; font-weight: 600;">Refund Fee Leakage ${fmtNum(p.refund_fee_leakage)}</span> - 
+        <span style="color: #dc2626; font-weight: 600;">Dispute Escrow ${fmtNum(p.disputed_escrow_gmv)}</span> - 
+        <span style="color: #dc2626; font-weight: 600;">Dispute Penalties ${fmtNum(p.dispute_penalties)}</span>
+      `;
+    }
 
-    const payoutEl = document.getElementById('unpacker-payout');
-    if (payoutEl) payoutEl.innerText = `₹${formatInr(p.net_bank_payout)}`;
-
-    const mdrEl = document.getElementById('unpacker-mdr');
-    if (mdrEl) mdrEl.innerText = `₹${formatInr(p.contracted_base_mdr || p.total_mdr_expense)}`;
-
-    const gstEl = document.getElementById('unpacker-gst');
-    if (gstEl) gstEl.innerText = `₹${formatInr(p.contracted_base_gst || p.total_gst_itc)}`;
-
-    const refundLossEl = document.getElementById('unpacker-refund-loss');
-    if (refundLossEl) refundLossEl.innerText = `₹${formatInr(p.refund_fee_leakage || p.total_non_recoverable_refund_loss)}`;
-
-    const payoutSub = document.getElementById('unpacker-payout-sub');
-    if (payoutSub) payoutSub.innerText = `${p.proportions?.net_payout_pct || 0}% of gross sales realized in bank`;
-
-    const mdrSub = document.getElementById('unpacker-mdr-sub');
-    if (mdrSub) mdrSub.innerText = `${p.proportions?.contracted_mdr_pct || 0}% contracted interchange fee`;
-
-    // Populate Recovery Equation Card
-    const claimableEl = document.getElementById('eq-claimable-overcharge');
-    if (claimableEl) claimableEl.innerText = `₹${formatInr(p.total_claimable_overcharges)}`;
-
-    const disputeEl = document.getElementById('eq-recoverable-dispute');
-    if (disputeEl) disputeEl.innerText = `₹${formatInr(p.disputed_escrow_gmv)}`;
+    const calloutEl = document.getElementById('unpacker-recovery-callout');
+    if (calloutEl) {
+      const claimStr = `<b style="color: #059669; font-family: 'JetBrains Mono', monospace; font-weight: 800;">₹${formatInr(p.total_claimable_overcharges)}</b>`;
+      const disputeStr = `<b style="color: #059669; font-family: 'JetBrains Mono', monospace; font-weight: 800;">₹${formatInr(p.disputed_escrow_gmv)}</b>`;
+      calloutEl.innerHTML = `💡 You have ${claimStr} in claimable fee overcharges and ${disputeStr} in pending dispute escrow.`;
+    }
 
     const potentialEl = document.getElementById('eq-potential-bank');
-    if (potentialEl) potentialEl.innerText = `₹${formatInr(p.potential_recovered_payout)}`;
+    if (potentialEl) {
+      potentialEl.innerHTML = `<span style="color: #059669; font-family: 'JetBrains Mono', monospace; font-weight: 800;">₹${formatInr(p.potential_recovered_payout)}</span>`;
+    }
   }
 
   function renderExecutiveSummary(data) {
@@ -112,7 +105,7 @@ const SettlementUnpacker = (() => {
       badgeEl.innerText = `🏷️ ${data.generated_by}`;
     }
     if (takeRatePill && data.unpacked_pillars?.proportions) {
-      const slaPct = data.contracted_sla?.effective_sla_percent || 2.60;
+      const slaPct = data.contracted_sla?.effective_sla_percent || 2.36;
       takeRatePill.innerText = `Contracted SLA Take-Rate: ${slaPct}%`;
     }
   }
@@ -160,22 +153,28 @@ const SettlementUnpacker = (() => {
       }
     };
 
+    const mdrRate = (data.contracted_sla?.mdr_percent || 2.0).toFixed(2);
+    const gstRate = (data.contracted_sla?.gst_percent || 18.0).toFixed(2);
+    const avgOverchargeRate = (p.avg_overcharged_mdr_percent || 2.70).toFixed(2);
+    const tdsRateText = (p.total_tds_withheld && p.total_tds_withheld > 0) ? '(1.00%)' : '(0.00%)';
+
     const chartLabels = [
       'Gross Sales (GMV)',
-      'Section 194-O TDS (1%)',
-      'Contracted MDR',
-      'Overcharged MDR',
-      'Claimable 18% GST',
+      'Net Bank Deposited',
+      ['Section 194-O TDS', tdsRateText],
+      ['Contracted MDR', `(${mdrRate}%)`],
+      ['Overcharged MDR', `(Avg ${avgOverchargeRate}%)`],
+      ['Claimable 18% GST', `(${gstRate}%)`],
       'Overcharged GST',
       'Customer Refund GMV',
       'Refund Fee Loss',
-      'Disputed GMV Hold',
-      'Dispute Penalties',
-      'Net Bank Deposited'
+      'Dispute GMV Hold',
+      'Dispute Penalties'
     ];
 
     const chartValues = [
       p.total_gmv || 0,
+      p.net_bank_payout || 0,
       p.total_tds_withheld || 0,
       p.contracted_base_mdr || 0,
       p.overcharged_mdr || 0,
@@ -184,22 +183,21 @@ const SettlementUnpacker = (() => {
       p.customer_refund_gmv || 0,
       p.refund_fee_leakage || 0,
       p.disputed_escrow_gmv || 0,
-      p.dispute_penalties || 0,
-      p.net_bank_payout || 0
+      p.dispute_penalties || 0
     ];
 
     const chartColors = [
       'rgba(59, 130, 246, 0.90)',   // 1. Blue (GMV)
-      'rgba(99, 102, 241, 0.90)',   // 2. Indigo (TDS)
-      'rgba(245, 158, 11, 0.90)',   // 3. Amber (Base MDR)
-      'rgba(239, 68, 68, 0.90)',    // 4. Red (Overcharged MDR)
-      'rgba(139, 92, 246, 0.90)',   // 5. Purple (Base GST ITC)
-      'rgba(217, 70, 239, 0.90)',   // 6. Fuchsia (Overcharged GST)
-      'rgba(244, 63, 94, 0.90)',    // 7. Rose (Refund GMV)
-      'rgba(190, 18, 60, 0.90)',    // 8. Dark Crimson (Refund Fee Loss)
-      'rgba(249, 115, 22, 0.90)',   // 9. Orange (Dispute Escrow)
-      'rgba(185, 28, 28, 0.90)',    // 10. Deep Red (Dispute Penalties)
-      'rgba(16, 185, 129, 0.95)'    // 11. Emerald Green (Net Bank)
+      'rgba(16, 185, 129, 0.95)',   // 2. Emerald Green (Net Bank)
+      'rgba(99, 102, 241, 0.90)',   // 3. Indigo (TDS)
+      'rgba(245, 158, 11, 0.90)',   // 4. Amber (Contracted MDR)
+      'rgba(239, 68, 68, 0.90)',    // 5. Red (Overcharged MDR)
+      'rgba(139, 92, 246, 0.90)',   // 6. Purple (Base GST ITC)
+      'rgba(217, 70, 239, 0.90)',   // 7. Fuchsia (Overcharged GST)
+      'rgba(244, 63, 94, 0.90)',    // 8. Rose (Customer Refund GMV)
+      'rgba(190, 18, 60, 0.90)',    // 9. Dark Crimson (Refund Fee Loss)
+      'rgba(249, 115, 22, 0.90)',   // 10. Orange (Dispute Escrow Hold)
+      'rgba(185, 28, 28, 0.90)'     // 11. Deep Red (Dispute Penalties)
     ];
 
     chartInstance = new Chart(ctx, {
