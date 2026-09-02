@@ -590,31 +590,28 @@ Click the floating **🤖 AI Copilot** button (bottom-right drawer) to test thes
 
 ### 3. 📊 Data Analysis & Insights Dashboard
 
-Navigating to the **📊 Data Analysis & Insights** tab in the sidebar unlocks an executive financial visualization dashboard powered by **Chart.js** and **`TaxOptimizerAI`** (Executive Tax Strategist & Financial Policy Evaluator):
+Navigating to the **📊 Data Analysis & Insights** tab in the sidebar unlocks an executive financial visualization dashboard powered by **Chart.js**, **`SettlementUnpackerEngine`**, and **`TaxOptimizerAI`** (Executive Tax Strategist & Financial Policy Evaluator):
 
 ##### 🏗️ AI Analytics & Tax Optimization Flow Architecture:
 
 ```mermaid
 %%{init: {'flowchart': {'curve': 'linear'}}}%%
 flowchart TD
-    Recon["📁 <b>Reconciled Financial Ledgers</b><br/><i>(Store Orders, Settlement UTR Batches & Bank Statement)</i>"]
+    Recon["📁 <b>Multi-Source Ingestion Ledgers</b><br/><i>(Store Orders, Bank Statement & Razorpay Settlement)</i>"]
     
-    Engine["⚙️ <b>AutoReconAI Analytics Engine</b><br/><i>(Deterministic Aggregations & Settlement Math)</i>"]
+    Engine["⚙️ <b>SettlementUnpackerEngine</b><br/><i>(7-Bucket Forensic Decomposition & Equation Balancing)</i>"]
     
-    TaxOpt["🏛️ <b>TaxOptimizerAI</b><br/><i>(Executive Tax Strategist & Financial Policy Evaluator)</i>"]
+    TaxOpt["🏛️ <b>TaxOptimizerAI (Agent 4)</b><br/><i>(Section 16 CGST Act Compliance & Executive FAQs)</i>"]
     
-    Chart["📊 <b>Interactive Settlement Allocation Chart</b><br/><i>(Chart.js Dynamic Financial Distribution)</i>"]
-    Pillars["💰 <b>The 4 Core Financial Pillars & Flow Bar</b><br/><i>(GMV, Bank Realization, MDR, 18% GST ITC & Refund Loss)</i>"]
-    TaxCompliance["🧾 <b>Statutory Tax & Compliance Dossier</b><br/><i>(Section 16 CGST ITC GSTR-3B & Section 194-O TDS)</i>"]
-    FAQs["💡 <b>Executive Financial FAQs & Anomaly Chips</b><br/><i>(MDR Overcharges, Dropped Webhooks & Prior Returns)</i>"]
+    Chart["📊 <b>11-Bar Settlement Allocation Chart</b><br/><i>(Values & % of Gross GMV via Chart.js)</i>"]
+    Equation["🧮 <b>Master Reconciliation Equation Box</b><br/><i>(Dynamic Balance Validation & Cash Recovery Upside)</i>"]
+    FAQs["🤖 <b>Executive Financial FAQs Accordion</b><br/><i>(GSTR-3B Table 4A, SLA Take-Rates, Webhooks & Disputes)</i>"]
 
     Recon --> Engine
-    Engine --> TaxOpt
-    
-    TaxOpt --> Chart
-    TaxOpt --> Pillars
-    TaxOpt --> TaxCompliance
-    TaxOpt --> FAQs
+    Engine -->|"Deterministic Facts Context"| TaxOpt
+    Engine -->|"Unpacked Fact Pillars"| Chart
+    Engine -->|"Mathematical Verification"| Equation
+    TaxOpt -->|"Synthesized Advisory Q&As"| FAQs
 
     classDef darkBox fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#ffffff;
     classDef lightBox fill:#ffffff,stroke:#1e293b,stroke-width:1.5px,color:#0f172a;
@@ -624,41 +621,68 @@ flowchart TD
     class Recon lightBox;
     class Engine toolBox;
     class TaxOpt darkBox;
-    class Chart,Pillars,TaxCompliance,FAQs actionBox;
+    class Chart,Equation,FAQs actionBox;
 ```
 
-##### 🏛️ Role & Nature of `TaxOptimizerAI`:
-- **Specialized Financial Policy Evaluator:** Unlike chat agents that execute interactive multi-turn tool loops, `TaxOptimizerAI` operates as a deterministic tax strategy and policy synthesis engine. It evaluates aggregated settlement metrics against statutory government tax circulars (CBDT / CBIC / RBI).
-- **Core Analytic Capabilities:**
-  1. **Section 16 CGST Act Input Tax Credit (ITC):** Aggregates gateway 18% GST deductions and generates pre-filled figures eligible for 100% tax offset in **GSTR-3B Table 4(A)(5)**.
-  2. **Section 194-O TDS Withholding Credit:** Audits 1.00% e-commerce operator tax withheld at source, cross-referencing with merchant **Form 26AS** advance tax assets.
-  3. **Gateway Take-Rate & Margin Impact:** Analyzes true effective processing fees (MDR + GST - ITC offset) and benchmarks gateway costs against contracted commercial SLAs.
+##### 🏛️ Role & Capabilities of `TaxOptimizerAI` (Agent 4):
+- **Specialized Financial Policy Evaluator:** Unlike interactive chat agents, `TaxOptimizerAI` receives **100% verified deterministic metrics** and synthesizes executive guidance adhering to Indian statutory tax standards (CBDT / CBIC / RBI).
+- **Core Advisory Pillars:**
+  1. **Section 16 CGST Act Input Tax Credit (ITC):** Quantifies total 18% GST deducted on processing fees and provides precise reporting instructions for **monthly GSTR-3B filings (Table 4A - "All other ITC")** to reduce merchant net tax liability.
+  2. **Gateway SLA Take-Rate Benchmarking:** Evaluates effective gateway take-rate vs. contracted commercial SLAs to identify rate leakage.
+  3. **Dropped Webhook Fulfillment Safety:** Cross-checks gateway-settled funds against store `PENDING` states to safely authorize order fulfillment.
+  4. **Immediate Overcharge Cash Recovery:** Pinpoints interchange rate breaches and drafts claimable amounts for gateway dispute tickets.
 
-##### 📊 Key Dashboard Analytics & Executive Controls:
-- **Interactive Financial Settlement Allocation Chart:** Visualizes Gross Sales (GMV), Net Bank Deposits, Gateway MDR Fees, 18% GST ITC, Customer Returns, and Non-Recoverable Refund Loss with exact rupee and percentage tags powered by Chart.js.
-- **The 4 Core Financial Pillars:**
-  1. 💰 **Net Gross Sales (GMV)** (100% customer checkout volume baseline)
-  2. 🏦 **Net Bank Deposited** (Actual cash realized in merchant bank account)
-  3. ⚡ **Gateway MDR Expense** (Interchange & processing fee retained by Razorpay)
-  4. 🏛️ **Claimable 18% GST (ITC)** (100% tax deductible under Section 16 CGST Act)
-  5. 💸 **Non-Recoverable Refund Loss** (Unreversed gateway fe---
+##### 📊 Key Dashboard Modules & Executive Controls:
 
-## 📜 License
-This project is open-source and licensed under the [MIT License](LICENSE).
-�─────────────┘
-            ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 4. Refresh Browser & Click "Reset Session":                 │
-│    Open http://127.0.0.1:5055 -> Refresh -> Click "Reset"   │
-│    (Flushes in-memory server cache and resets chat memory)  │
-└─────────────────────────────────────────────────────────────┘
-```
+1. **Active Contracted SLA Header Badge:**
+   - Displays current commercial baseline (e.g., `Contracted SLA: 2.00% MDR + 18% GST` or `2.50% MDR + 18% GST`).
+
+2. **11-Bar Interactive Financial Settlement Allocation Chart (Chart.js):**
+   - Displays exact INR values and dynamic `% of Gross Sales` tags for all 11 revenue/deduction components:
+     - 🔵 **Gross Sales (GMV)** (Baseline checkout volume)
+     - 🟢 **Net Bank Deposited** (Realized cash credited to bank)
+     - 🟣 **Section 194-O Statutory TDS** (1.00% Form 26AS Advance Tax Asset)
+     - 🟠 **Contracted Baseline MDR** vs. 🔴 **Overcharged MDR** (Claimable)
+     - 🟣 **Claimable 18% GST (ITC)** vs. 🌸 **Overcharged GST** (Claimable)
+     - 🌹 **Customer Return GMV** & 🥀 **Non-Recoverable Refund Fee Loss**
+     - 🟧 **Chargeback Dispute Escrow Holds** & 🛑 **Dispute Penalties**
+
+3. **Master Settlement Reconciliation Equation & Recovery Upside:**
+   - Computes live formula:
+     $$\text{Net Bank} = \text{GMV} - \sum \text{MDR} - \sum \text{GST} - \text{TDS} - \text{Refunds} - \text{Dispute Escrows}$$
+   - **Real-Time Mathematical Balance Badge:** Displays `✅ 100% Mathematically Balanced` when variance is under ₹0.05.
+   - **Potential Realized Cash Upside:** Quantifies total claimable fee overcharges and escrow funds to compute maximum post-recovery bank cash:
+     $$\text{Potential Realized Bank Cash} = \text{Net Bank Payout} + \text{Claimable Overcharges} + \text{Dispute Escrow GMV}$$
+
+4. **AI Controller Smart FAQs Accordion:**
+   - Expandable Q&A accordion dynamically generated with tailored guidance for finance and tax operations teams.
+
+---
+
+### 4. 🔄 Config Change & Session Reset Protocol
+
+When experimenting with different parameters in `config.ini` (e.g., changing transaction counts, varying opening balance, or altering MDR rates):
+
+1. **Stop Running Servers** (`Ctrl + C` in terminal).
+2. **Re-run the Simulation Pipeline:**
+   ```bash
+   python "Data Simulator & Generator/run_simulation_pipeline.py"
+   ```
+3. **Restart the Reconciliation Server:**
+   ```bash
+   python run_razorpay_suite.py
+   ```
+4. **Refresh Browser & Click "Reset Session":**
+   - Open `http://127.0.0.1:5055`
+   - Click the **🔄 Reset Session** button in the top-right corner to flush in-memory server caches and reset conversation history.
 
 ---
 
 ## 🗄️ Database Management & CLI Utilities (`store.db`)
 
-AutoReconAI includes built-in terminal and GUI viewers to inspect and manage SQLite database tables:
+> 💡 **Automatic Database Cleaning:** Users **do not need** to manually clean or re-seed the database between simulation runs. Every time you execute `python "Data Simulator & Generator/run_simulation_pipeline.py"`, the pipeline **automatically cleans `store.db` and initializes fresh tables** with the baseline catalog. This guarantees that new simulation runs are completely isolated and never appended to previous data.
+
+If you wish to independently inspect or manually reset the database outside of the simulator, AutoReconAI provides the following standalone utilities:
 
 ### 1. View Tables in Interactive Terminal Console (ASCII Grid)
 ```bash
@@ -670,12 +694,12 @@ python database/view.py --console
 python database/view.py --interface
 ```
 
-### 3. Re-seed or Clean Database Tables
+### 3. Optional Standalone Re-seed or Clean Utilities
 ```bash
-# Wipe and seed fresh grocery catalog:
+# Optional: Standalone wipe & seed fresh grocery catalog without running full simulation
 python database/init_db.py
 
-# Clean / wipe all transaction records:
+# Optional: Standalone wipe of all transaction and cart records
 python database/clean_db.py
 ```
 
