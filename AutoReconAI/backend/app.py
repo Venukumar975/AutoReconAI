@@ -239,6 +239,7 @@ def apply_bank_mapping():
 
         total_credits = sum(t["credit"] for t in txns)
         total_debits = sum(t["debit"] for t in txns)
+        net_credits = round(total_credits - total_debits, 2)
         gateway_credits_count = sum(1 for t in txns if t["is_gateway_credit"])
         operating_debits_count = sum(1 for t in txns if not t["is_gateway_credit"] and t["debit"] > 0)
 
@@ -247,6 +248,7 @@ def apply_bank_mapping():
             "total_transactions": len(txns),
             "total_credits": round(total_credits, 2),
             "total_debits": round(total_debits, 2),
+            "net_credits": net_credits,
             "gateway_credits_count": gateway_credits_count,
             "operating_debits_count": operating_debits_count,
             "preview_rows": txns[:5]
@@ -336,7 +338,8 @@ def generate_linked_grid():
         total_gst = sum(float(s.get("tax", 0.0)) for s in positive_settlements)
         pos_net_payout = sum(float(s.get("net_credit", 0.0)) for s in positive_settlements)
         total_bank_credits = sum(float(b.get("credit", 0.0)) for b in bank_txns if b.get("is_gateway_credit"))
-        total_bank_deposited = total_bank_credits if total_bank_credits > 0 else round(pos_net_payout - sum(abs(float(s.get("net_credit", 0.0))) for s in refund_settlements), 2)
+        total_bank_debits = sum(float(b.get("debit", 0.0)) for b in bank_txns if b.get("is_gateway_credit"))
+        total_bank_deposited = round(total_bank_credits - total_bank_debits, 2) if len(bank_txns) > 0 else round(pos_net_payout - sum(abs(float(s.get("net_credit", 0.0))) for s in refund_settlements), 2)
         matched_orders_count = 0
         total_orders_count = 0
         unique_mismatched_oids = set()

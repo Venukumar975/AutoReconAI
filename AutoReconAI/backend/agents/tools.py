@@ -43,7 +43,9 @@ class ReconToolbox:
         total_fees = sum(float(s.get("fee", 0.0)) for s in positive_settlements)
         total_gst = sum(float(s.get("tax", 0.0)) for s in positive_settlements)
         total_tds = sum(float(s.get("tds", 0.0)) for s in positive_settlements)
-        total_bank_deposited = sum(float(b.get("credit", 0.0)) for b in bank_txns if b.get("is_gateway_credit"))
+        total_bank_credits = sum(float(b.get("credit", 0.0)) for b in bank_txns if b.get("is_gateway_credit"))
+        total_bank_debits = sum(float(b.get("debit", 0.0)) for b in bank_txns if b.get("is_gateway_credit"))
+        total_bank_deposited = round(total_bank_credits - total_bank_debits, 2)
 
         contracted_mdr = GatewayConfig.get_mdr_rate()
         gst_rate = GatewayConfig.get_gst_rate()

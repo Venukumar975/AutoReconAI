@@ -144,8 +144,8 @@ const Uploader = (() => {
     dropzone.style.display = 'none';
 
     document.getElementById('name-bank').innerText = filename;
-    document.getElementById('stat-bank-count').innerText = `${result.total_transactions} Lines`;
-    document.getElementById('stat-bank-credits').innerText = `₹${result.total_credits.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    const netCredits = (result.net_credits !== undefined) ? result.net_credits : result.total_credits;
+    document.getElementById('stat-bank-credits').innerText = `₹${netCredits.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 
     uploadedState.style.display = 'flex';
     card.classList.remove('active-step');

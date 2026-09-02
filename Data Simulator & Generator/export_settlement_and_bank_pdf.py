@@ -234,17 +234,31 @@ def prepare_bank_transactions(payment_rows, config):
         utr_batches[utr]["utr"] = utr
 
     for utr, batch in utr_batches.items():
-        narration = f"CMS/RAZORPAY/BATCH_SETL/{utr}/CR"
-        statement_txns.append({
-            "txn_date": batch["txn_date"],
-            "value_date": batch["txn_date"],
-            "description": narration,
-            "ref_no": "-",
-            "branch_code": "04051",
-            "debit": 0.00,
-            "credit": round(batch["net_credit"], 2),
-            "type": "CR"
-        })
+        batch_net = round(batch["net_credit"], 2)
+        if batch_net < 0:
+            narration = f"CMS/RAZORPAY/BATCH_SETL/{utr}/DR"
+            statement_txns.append({
+                "txn_date": batch["txn_date"],
+                "value_date": batch["txn_date"],
+                "description": narration,
+                "ref_no": "-",
+                "branch_code": "04051",
+                "debit": abs(batch_net),
+                "credit": 0.00,
+                "type": "DR"
+            })
+        else:
+            narration = f"CMS/RAZORPAY/BATCH_SETL/{utr}/CR"
+            statement_txns.append({
+                "txn_date": batch["txn_date"],
+                "value_date": batch["txn_date"],
+                "description": narration,
+                "ref_no": "-",
+                "branch_code": "04051",
+                "debit": 0.00,
+                "credit": batch_net,
+                "type": "CR"
+            })
 
     # 2. Impute non-Razorpay Bank Expenses dynamically from bank_narrations.json
     if narrations_pool:
