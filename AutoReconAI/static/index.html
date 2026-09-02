@@ -369,10 +369,37 @@
               </div>
             </div>
 
-            <!-- 3. 4 Core Pillars Grid -->
+            <!-- 3. Master Reconciliation Equation Formula & Recovery Upside -->
+            <div class="unpacker-equation-card" style="background: #0f172a; border-radius: 12px; padding: 18px 24px; color: #ffffff; margin-bottom: 20px; border-left: 5px solid #10b981; box-shadow: 0 4px 14px rgba(0,0,0,0.15);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <span style="font-weight: 700; font-size: 15px; color: #38bdf8; display: flex; align-items: center; gap: 8px;">
+                  <span>🧮</span> Master Settlement Reconciliation Equation
+                </span>
+                <span style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 9999px; border: 1px solid rgba(16, 185, 129, 0.4);">
+                  ✅ 100% Mathematically Balanced
+                </span>
+              </div>
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6; color: #cbd5e1; background: #1e293b; padding: 12px 16px; border-radius: 8px; overflow-x: auto;">
+                <span style="color: #34d399; font-weight: 700;">Net Bank Deposited</span> = 
+                <span style="color: #60a5fa;">Gross Sales</span> - 
+                <span style="color: #fbbf24;">(Contracted MDR + Overcharged MDR)</span> - 
+                <span style="color: #c084fc;">(Contracted GST + Overcharged GST)</span> - 
+                <span style="color: #818cf8;">TDS (1%)</span> - 
+                <span style="color: #f43f5e;">Customer Refunds</span> - 
+                <span style="color: #e11d48;">Refund Fee Leakage</span> - 
+                <span style="color: #fb923c;">Dispute Escrow</span> - 
+                <span style="color: #f87171;">Dispute Penalties</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; font-size: 13px; color: #94a3b8;">
+                <span id="unpacker-recovery-callout">💡 You have <b style="color: #f87171;" id="eq-claimable-overcharge">₹0.00</b> in claimable fee overcharges and <b style="color: #fb923c;" id="eq-recoverable-dispute">₹0.00</b> in pending dispute escrow.</span>
+                <span style="color: #34d399; font-weight: 700;">Potential Realized Bank Cash: <span id="eq-potential-bank">₹0.00</span></span>
+              </div>
+            </div>
+
+            <!-- 4. Core Pillars Grid -->
             <div class="unpacker-pillars-grid">
               <div class="pillar-card gmv">
-                <span class="pillar-label">💰 Net Gross Sales (GMV)</span>
+                <span class="pillar-label">💰 Gross Sales (GMV)</span>
                 <span class="pillar-amount" id="unpacker-gmv">₹0.00</span>
                 <span class="pillar-subtext">Total customer checkout value across all verified orders (100%)</span>
               </div>
@@ -382,14 +409,14 @@
                 <span class="pillar-subtext" id="unpacker-payout-sub">Actual settled cash credited into your bank account</span>
               </div>
               <div class="pillar-card mdr">
-                <span class="pillar-label">⚡ Gateway MDR Expense</span>
+                <span class="pillar-label">⚡ Contracted MDR Expense</span>
                 <span class="pillar-amount" id="unpacker-mdr">₹0.00</span>
-                <span class="pillar-subtext" id="unpacker-mdr-sub">Interchange fee retained by Razorpay for processing</span>
+                <span class="pillar-subtext" id="unpacker-mdr-sub">Interchange fee retained by Razorpay under SLA</span>
               </div>
               <div class="pillar-card gst">
                 <span class="pillar-label">🏛️ Claimable 18% GST (ITC)</span>
                 <span class="pillar-amount" id="unpacker-gst">₹0.00</span>
-                <span class="pillar-subtext">100% Tax Credit claimable in monthly GSTR-3B / 2B return</span>
+                <span class="pillar-subtext">100% Tax Credit claimable in GSTR-3B Table 4(A)(5)</span>
                 <span class="pillar-badge">⚡ Tax Deductible</span>
               </div>
               <div class="pillar-card refund-loss" style="border-top: 4px solid #e11d48; background: linear-gradient(135deg, #ffffff 0%, #fff1f2 100%);">

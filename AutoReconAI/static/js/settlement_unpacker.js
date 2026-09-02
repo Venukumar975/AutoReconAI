@@ -65,16 +65,39 @@ const SettlementUnpacker = (() => {
 
     const formatInr = (val) => (val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-    document.getElementById('unpacker-sla-text').innerText = `Contracted SLA: ${sla.sla_text || '2.00% MDR + 18% GST'}`;
-    document.getElementById('unpacker-gmv').innerText = `₹${formatInr(p.total_gmv)}`;
-    document.getElementById('unpacker-payout').innerText = `₹${formatInr(p.net_bank_payout)}`;
-    document.getElementById('unpacker-mdr').innerText = `₹${formatInr(p.total_mdr_expense)}`;
-    document.getElementById('unpacker-gst').innerText = `₹${formatInr(p.total_gst_itc)}`;
-    const refundLossEl = document.getElementById('unpacker-refund-loss');
-    if (refundLossEl) refundLossEl.innerText = `₹${formatInr(p.total_non_recoverable_refund_loss)}`;
+    const slaEl = document.getElementById('unpacker-sla-text');
+    if (slaEl) slaEl.innerText = `Contracted SLA: ${sla.sla_text || '2.20% MDR + 18.30% GST'}`;
 
-    document.getElementById('unpacker-payout-sub').innerText = `${p.proportions?.net_payout_percent || 0}% of gross sales credited to bank`;
-    document.getElementById('unpacker-mdr-sub').innerText = `${p.proportions?.mdr_expense_percent || 0}% gateway processing fee deducted`;
+    const gmvEl = document.getElementById('unpacker-gmv');
+    if (gmvEl) gmvEl.innerText = `₹${formatInr(p.total_gmv)}`;
+
+    const payoutEl = document.getElementById('unpacker-payout');
+    if (payoutEl) payoutEl.innerText = `₹${formatInr(p.net_bank_payout)}`;
+
+    const mdrEl = document.getElementById('unpacker-mdr');
+    if (mdrEl) mdrEl.innerText = `₹${formatInr(p.contracted_base_mdr || p.total_mdr_expense)}`;
+
+    const gstEl = document.getElementById('unpacker-gst');
+    if (gstEl) gstEl.innerText = `₹${formatInr(p.contracted_base_gst || p.total_gst_itc)}`;
+
+    const refundLossEl = document.getElementById('unpacker-refund-loss');
+    if (refundLossEl) refundLossEl.innerText = `₹${formatInr(p.refund_fee_leakage || p.total_non_recoverable_refund_loss)}`;
+
+    const payoutSub = document.getElementById('unpacker-payout-sub');
+    if (payoutSub) payoutSub.innerText = `${p.proportions?.net_payout_pct || 0}% of gross sales realized in bank`;
+
+    const mdrSub = document.getElementById('unpacker-mdr-sub');
+    if (mdrSub) mdrSub.innerText = `${p.proportions?.contracted_mdr_pct || 0}% contracted interchange fee`;
+
+    // Populate Recovery Equation Card
+    const claimableEl = document.getElementById('eq-claimable-overcharge');
+    if (claimableEl) claimableEl.innerText = `₹${formatInr(p.total_claimable_overcharges)}`;
+
+    const disputeEl = document.getElementById('eq-recoverable-dispute');
+    if (disputeEl) disputeEl.innerText = `₹${formatInr(p.disputed_escrow_gmv)}`;
+
+    const potentialEl = document.getElementById('eq-potential-bank');
+    if (potentialEl) potentialEl.innerText = `₹${formatInr(p.potential_recovered_payout)}`;
   }
 
   function renderExecutiveSummary(data) {
@@ -89,8 +112,8 @@ const SettlementUnpacker = (() => {
       badgeEl.innerText = `🏷️ ${data.generated_by}`;
     }
     if (takeRatePill && data.unpacked_pillars?.proportions) {
-      const totalTake = (data.unpacked_pillars.proportions.mdr_expense_percent + data.unpacked_pillars.proportions.gst_itc_percent).toFixed(2);
-      takeRatePill.innerText = `Effective Gateway Take-Rate: ${totalTake}%`;
+      const slaPct = data.contracted_sla?.effective_sla_percent || 2.60;
+      takeRatePill.innerText = `Contracted SLA Take-Rate: ${slaPct}%`;
     }
   }
 
@@ -113,7 +136,7 @@ const SettlementUnpacker = (() => {
 
         chart.getDatasetMeta(0).data.forEach((bar, index) => {
           const val = data.datasets[0].data[index];
-          if (val === undefined) return;
+          if (val === undefined || val === 0) return;
           const pct = ((val / gmv) * 100).toFixed(2);
           const textVal = `₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
           const textPct = `(${pct}%)`;
@@ -122,14 +145,14 @@ const SettlementUnpacker = (() => {
           ctx.textAlign = 'center';
           ctx.textBaseline = 'bottom';
           
-          // Draw Amount Label (Exact 2 Decimal Places)
-          ctx.font = 'bold 11.5px Inter, sans-serif';
+          // Draw Amount Label
+          ctx.font = 'bold 11px Inter, sans-serif';
           ctx.fillStyle = '#0f172a';
-          ctx.fillText(textVal, bar.x, bar.y - 16);
+          ctx.fillText(textVal, bar.x, bar.y - 15);
 
           // Draw Percentage Label
-          ctx.font = '600 11px JetBrains Mono, monospace';
-          ctx.fillStyle = index === 0 ? '#1d4ed8' : (index === 1 ? '#047857' : (index === 2 ? '#b45309' : (index === 3 ? '#6d28d9' : (index === 4 ? '#be123c' : '#dc2626'))));
+          ctx.font = '600 10.5px JetBrains Mono, monospace';
+          ctx.fillStyle = '#475569';
           ctx.fillText(textPct, bar.x, bar.y - 2);
 
           ctx.restore();
@@ -137,46 +160,60 @@ const SettlementUnpacker = (() => {
       }
     };
 
+    const chartLabels = [
+      'Gross Sales (GMV)',
+      'Section 194-O TDS (1%)',
+      'Contracted MDR',
+      'Overcharged MDR',
+      'Claimable 18% GST',
+      'Overcharged GST',
+      'Customer Refund GMV',
+      'Refund Fee Loss',
+      'Disputed GMV Hold',
+      'Dispute Penalties',
+      'Net Bank Deposited'
+    ];
+
+    const chartValues = [
+      p.total_gmv || 0,
+      p.total_tds_withheld || 0,
+      p.contracted_base_mdr || 0,
+      p.overcharged_mdr || 0,
+      p.contracted_base_gst || 0,
+      p.overcharged_gst || 0,
+      p.customer_refund_gmv || 0,
+      p.refund_fee_leakage || 0,
+      p.disputed_escrow_gmv || 0,
+      p.dispute_penalties || 0,
+      p.net_bank_payout || 0
+    ];
+
+    const chartColors = [
+      'rgba(59, 130, 246, 0.90)',   // 1. Blue (GMV)
+      'rgba(99, 102, 241, 0.90)',   // 2. Indigo (TDS)
+      'rgba(245, 158, 11, 0.90)',   // 3. Amber (Base MDR)
+      'rgba(239, 68, 68, 0.90)',    // 4. Red (Overcharged MDR)
+      'rgba(139, 92, 246, 0.90)',   // 5. Purple (Base GST ITC)
+      'rgba(217, 70, 239, 0.90)',   // 6. Fuchsia (Overcharged GST)
+      'rgba(244, 63, 94, 0.90)',    // 7. Rose (Refund GMV)
+      'rgba(190, 18, 60, 0.90)',    // 8. Dark Crimson (Refund Fee Loss)
+      'rgba(249, 115, 22, 0.90)',   // 9. Orange (Dispute Escrow)
+      'rgba(185, 28, 28, 0.90)',    // 10. Deep Red (Dispute Penalties)
+      'rgba(16, 185, 129, 0.95)'    // 11. Emerald Green (Net Bank)
+    ];
+
     chartInstance = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: [
-          'Gross Sales (GMV)',
-          'Net Bank Deposited',
-          'Gateway MDR Fee',
-          'Claimable 18% GST (ITC)',
-          'Customer Return Refunds',
-          'Non-Recoverable Refund Loss'
-        ],
+        labels: chartLabels,
         datasets: [{
           label: 'Amount (INR ₹)',
-          data: [
-            p.total_gmv || 0,
-            p.net_bank_payout || 0,
-            p.total_mdr_expense || 0,
-            p.total_gst_itc || 0,
-            p.total_customer_refunds || 0,
-            p.total_non_recoverable_refund_loss || 0
-          ],
-          backgroundColor: [
-            'rgba(59, 130, 246, 0.85)',   // Blue (GMV)
-            'rgba(16, 185, 129, 0.85)',   // Green (Net Bank)
-            'rgba(245, 158, 11, 0.85)',   // Amber (MDR)
-            'rgba(139, 92, 246, 0.85)',   // Purple (GST ITC)
-            'rgba(244, 63, 94, 0.85)',    // Rose (Refunds)
-            'rgba(225, 29, 72, 0.85)'     // Crimson Red (Refund Loss)
-          ],
-          borderColor: [
-            '#2563eb',
-            '#059669',
-            '#d97706',
-            '#7c3aed',
-            '#e11d48',
-            '#be123c'
-          ],
-          borderWidth: 1.5,
-          borderRadius: 8,
-          barPercentage: 0.50
+          data: chartValues,
+          backgroundColor: chartColors,
+          borderWidth: 1,
+          borderColor: '#0f172a',
+          borderRadius: 6,
+          barPercentage: 0.65
         }]
       },
       plugins: [topLabelsPlugin],
@@ -185,27 +222,28 @@ const SettlementUnpacker = (() => {
         maintainAspectRatio: false,
         layout: {
           padding: {
-            top: 36
+            top: 36,
+            bottom: 8
           }
         },
         animation: {
-          duration: 900,
+          duration: 800,
           easing: 'easeOutQuart'
         },
         plugins: {
           legend: { display: false },
           tooltip: {
             backgroundColor: '#0c2340',
-            titleFont: { size: 13, weight: '700' },
-            bodyFont: { size: 13 },
-            padding: 12,
+            titleFont: { size: 12, weight: '700' },
+            bodyFont: { size: 12 },
+            padding: 10,
             cornerRadius: 8,
             callbacks: {
               label: function(context) {
                 const val = context.raw || 0;
                 const gmv = p.total_gmv || 1;
                 const pct = ((val / gmv) * 100).toFixed(2);
-                return ` INR ₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${pct}% of Total Gross Sales)`;
+                return ` INR ₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${pct}% of Gross Sales)`;
               }
             }
           }
@@ -214,8 +252,10 @@ const SettlementUnpacker = (() => {
           x: {
             grid: { display: false },
             ticks: {
-              font: { weight: '600', size: 11 },
-              color: '#334155'
+              font: { weight: '600', size: 10 },
+              color: '#334155',
+              maxRotation: 25,
+              minRotation: 20
             }
           },
           y: {
@@ -224,7 +264,7 @@ const SettlementUnpacker = (() => {
             ticks: {
               callback: (val) => '₹' + (val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val),
               color: '#64748b',
-              font: { size: 11 }
+              font: { size: 10.5 }
             }
           }
         }
@@ -234,11 +274,13 @@ const SettlementUnpacker = (() => {
 
   function renderFlowBar(data) {
     const props = data.unpacked_pillars?.proportions || {};
-    const netPct = props.net_payout_percent || 93.64;
-    const mdrPct = props.mdr_expense_percent || 2.51;
-    const gstPct = props.gst_itc_percent || 0.45;
-    const refundsPct = props.refunds_percent || 3.40;
-    const lossPct = props.non_recoverable_loss_percent || 0.04;
+    const netPct = props.net_payout_pct || props.net_payout_percent || 93.64;
+    const mdrPct = props.contracted_mdr_pct || props.mdr_expense_percent || 2.20;
+    const overMdrPct = props.overcharged_mdr_pct || 0.0;
+    const gstPct = props.contracted_gst_pct || props.gst_itc_percent || 0.40;
+    const refundsPct = props.refunds_pct || props.refunds_percent || 0.0;
+    const lossPct = props.refund_leakage_pct || props.non_recoverable_loss_percent || 0.0;
+    const dispPct = props.dispute_escrow_pct || 0.0;
 
     const flowNet = document.getElementById('flow-net');
     const flowMdr = document.getElementById('flow-mdr');
@@ -247,9 +289,9 @@ const SettlementUnpacker = (() => {
     const flowLoss = document.getElementById('flow-loss');
 
     if (flowNet) flowNet.style.width = `${netPct}%`;
-    if (flowMdr) flowMdr.style.width = `${mdrPct}%`;
+    if (flowMdr) flowMdr.style.width = `${(mdrPct + overMdrPct).toFixed(2)}%`;
     if (flowGst) flowGst.style.width = `${gstPct}%`;
-    if (flowRefunds) flowRefunds.style.width = `${refundsPct}%`;
+    if (flowRefunds) flowRefunds.style.width = `${(refundsPct + dispPct).toFixed(2)}%`;
     if (flowLoss) flowLoss.style.width = `${lossPct}%`;
 
     const lblNet = document.getElementById('legend-net-label');
@@ -259,12 +301,12 @@ const SettlementUnpacker = (() => {
     const lblLoss = document.getElementById('legend-loss-label');
 
     if (lblNet) lblNet.innerText = `Net Bank Payout: ${netPct}%`;
-    if (lblMdr) lblMdr.innerText = `Gateway MDR Fee: ${mdrPct}%`;
+    if (lblMdr) lblMdr.innerText = `Gateway MDR: ${(mdrPct + overMdrPct).toFixed(2)}%`;
     if (lblGst) lblGst.innerText = `Claimable GST ITC: ${gstPct}%`;
-    if (lblRefunds) lblRefunds.innerText = `Customer Refunds: ${refundsPct}%`;
-    if (lblLoss) lblLoss.innerText = `Un-Reversed Refund Loss: ${lossPct}%`;
+    if (lblRefunds) lblRefunds.innerText = `Refunds & Disputes: ${(refundsPct + dispPct).toFixed(2)}%`;
+    if (lblLoss) lblLoss.innerText = `Un-Reversed Fee Loss: ${lossPct}%`;
 
-    const totalTakeRate = (mdrPct + gstPct).toFixed(2);
+    const totalTakeRate = (mdrPct + overMdrPct + gstPct).toFixed(2);
     const takeRateText = document.getElementById('flow-take-rate-text');
     if (takeRateText) takeRateText.innerText = `Effective Gateway Take-Rate: ${totalTakeRate}%`;
   }
@@ -274,46 +316,59 @@ const SettlementUnpacker = (() => {
     const formatInr = (val) => (val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     // 1. Overcharges
-    const overcharges = buckets.fee_overcharges || {};
-    document.getElementById('bucket-overcharge-count').innerText = `${overcharges.count || 0} Orders`;
-    document.getElementById('bucket-overcharge-claim').innerText = `Claimable Cash: ₹${formatInr(overcharges.total_claimable_inr)}`;
+    const overcharges = buckets.mdr_overcharges || buckets.fee_overcharges || {};
+    const overchargeCountEl = document.getElementById('bucket-overcharge-count');
+    if (overchargeCountEl) overchargeCountEl.innerText = `${overcharges.count || 0} Orders`;
+    const overchargeClaimEl = document.getElementById('bucket-overcharge-claim');
+    if (overchargeClaimEl) overchargeClaimEl.innerText = `Claimable Cash: ₹${formatInr(overcharges.total_claimable_inr)}`;
     
     const overchargeTags = document.getElementById('bucket-overcharge-tags');
-    overchargeTags.innerHTML = '';
-    (overcharges.orders || []).forEach(o => {
-      const span = document.createElement('span');
-      span.className = 'order-pill overcharge';
-      span.innerText = `${o.order_id} (Claim: ₹${o.claimable_overcharge})`;
-      span.title = `Billed at ${o.billed_rate} vs contracted ${o.contracted_rate}`;
-      overchargeTags.appendChild(span);
-    });
+    if (overchargeTags) {
+      overchargeTags.innerHTML = '';
+      (overcharges.orders || []).forEach(o => {
+        const span = document.createElement('span');
+        span.className = 'order-pill overcharge';
+        span.innerText = `${o.order_id} (Claim: ₹${o.claimable_overcharge})`;
+        span.title = `Billed at ${o.billed_rate} vs contracted ${o.contracted_rate}`;
+        overchargeTags.appendChild(span);
+      });
+    }
 
     // 2. Dropped Webhooks
     const webhooks = buckets.dropped_webhooks || {};
-    document.getElementById('bucket-webhook-count').innerText = `${webhooks.count || 0} Orders`;
+    const webhookCountEl = document.getElementById('bucket-webhook-count');
+    if (webhookCountEl) webhookCountEl.innerText = `${webhooks.count || 0} Orders`;
+    
     const webhookTags = document.getElementById('bucket-webhook-tags');
-    webhookTags.innerHTML = '';
-    (webhooks.orders || []).forEach(o => {
-      const span = document.createElement('span');
-      span.className = 'order-pill webhook';
-      span.innerText = `${o.order_id} (₹${formatInr(o.amount)})`;
-      span.title = `Store status is PENDING, but gateway captured payment`;
-      webhookTags.appendChild(span);
-    });
+    if (webhookTags) {
+      webhookTags.innerHTML = '';
+      (webhooks.orders || []).forEach(w => {
+        const span = document.createElement('span');
+        span.className = 'order-pill webhook';
+        span.innerText = `${w.order_id} (₹${formatInr(w.amount)})`;
+        span.title = `Payment captured at gateway; Store status PENDING`;
+        webhookTags.appendChild(span);
+      });
+    }
 
-    // 3. Orphan Refunds
-    const orphans = buckets.orphan_refunds || {};
-    document.getElementById('bucket-orphan-count').innerText = `${orphans.count || 0} Orders`;
-    document.getElementById('bucket-orphan-deduction').innerText = `Total Deductions: ₹${formatInr(orphans.total_deduction_inr)}`;
-    const orphanTags = document.getElementById('bucket-orphan-tags');
-    orphanTags.innerHTML = '';
-    (orphans.orders || []).forEach(o => {
-      const span = document.createElement('span');
-      span.className = 'order-pill orphan';
-      span.innerText = `${o.order_id} (-₹${formatInr(o.deduction_amount)})`;
-      span.title = o.reason;
-      orphanTags.appendChild(span);
-    });
+    // 3. Customer Refunds / Orphan Returns
+    const refunds = buckets.customer_refunds || buckets.orphan_refunds || {};
+    const refundCountEl = document.getElementById('bucket-refund-count');
+    if (refundCountEl) refundCountEl.innerText = `${refunds.count || 0} Orders`;
+    const refundDeductEl = document.getElementById('bucket-refund-deduction');
+    if (refundDeductEl) refundDeductEl.innerText = `Total Debited: ₹${formatInr(refunds.total_amount_inr || refunds.total_deduction_inr)}`;
+
+    const refundTags = document.getElementById('bucket-refund-tags');
+    if (refundTags) {
+      refundTags.innerHTML = '';
+      (refunds.orders || []).forEach(r => {
+        const span = document.createElement('span');
+        span.className = 'order-pill refund';
+        span.innerText = `${r.order_id} (-₹${formatInr(r.deduction_amount)})`;
+        span.title = r.reason || 'Customer refund';
+        refundTags.appendChild(span);
+      });
+    }
   }
 
   function renderFAQs(data) {
