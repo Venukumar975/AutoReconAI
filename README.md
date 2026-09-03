@@ -33,9 +33,9 @@
 
 ## 📺 Video Demo Walkthrough
 
-[![AutoReconAI System Walkthrough & Live Demo](https://img.shields.io/badge/YouTube-Watch%20Live%20Demo-red?style=for-the-badge&logo=youtube)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID_HERE)
+[![AutoReconAI System Walkthrough & Live Demo](https://img.shields.io/badge/YouTube-Watch%20Live%20Demo-red?style=for-the-badge&logo=youtube)](https://www.youtube.com/watch?v=cvPRZpfcnzQ)
 
-> 📹 **Watch the Full Video Walkthrough:** [Click here to view on YouTube](https://www.youtube.com/watch?v=YOUR_VIDEO_ID_HERE) *(Replace `YOUR_VIDEO_ID_HERE` with your recorded video link).*
+> 📹 **Watch the Full Video Walkthrough:** [Click here to view on YouTube](https://www.youtube.com/watch?v=cvPRZpfcnzQ)
 
 ---
 
