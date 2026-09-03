@@ -10,6 +10,27 @@
 
 ---
 
+## 📑 Table of Contents
+* [📺 Video Demo Walkthrough](#-video-demo-walkthrough)
+* [⏱️ 60-Second Overview (Problem & Solution)](#️-60-second-overview-problem--solution)
+* [🏗️ High-Level System Architecture](#️-high-level-system--pipeline-architecture)
+* [🛠️ Initial & Mandatory Setup](#️-initial--mandatory-setup)
+  * [Step 1: Clone Repository](#step-1-clone-repository)
+  * [Step 2: Create Virtual Environment & Install Dependencies](#step-2-create-virtual-environment--install-dependencies)
+  * [Step 3: Generate Gemini API Key & Create .env File](#step-3-generate-gemini-api-key--create-env-file)
+  * [Step 4: Verify Model Availability & Rate Limits](#step-4-verify-model-availability--rate-limits-ai_modelsini)
+* [🚀 Launch Services & Generate Data](#-launch-services--generate-data)
+* [🧪 5 Prototypic Commercial Edge Cases](#-5-prototypic-commercial-edge-cases)
+* [🖥️ AutoReconAI Platform Operations](#️-autoreconai-platform-operations-http1270015055)
+  * [📁 Data Ingestion](#-data-ingestion)
+  * [🔍 3-Way Reconciliation & AI Copilot](#-3-way-reconciliation)
+  * [📊 Data Analysis & Insights](#-data-analysis--insights)
+* [⚡ 5-Minute Reviewer Evaluation Checklist](#-5-minute-reviewer-evaluation-checklist)
+* [📚 In-Depth Technical Documentation](#-in-depth-technical-documentation)
+* [📜 License](#-license)
+
+---
+
 ## 📺 Video Demo Walkthrough
 
 [![AutoReconAI System Walkthrough & Live Demo](https://img.shields.io/badge/YouTube-Watch%20Live%20Demo-red?style=for-the-badge&logo=youtube)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID_HERE)
@@ -73,15 +94,12 @@ flowchart TD
 
 ---
 
-## 🚀 Quick Setup & How to Run
+## 🛠️ Initial & Mandatory Setup
 
-### Step 1: Clone & Configure Environment
+### Step 1: Clone Repository
 ```bash
 git clone https://github.com/Venukumar975/AutoReconAI.git
 cd AutoReconAI
-
-# Create a .env file at the root and add your Gemini API Key:
-GEMINI_API_KEY=your_actual_gemini_api_key_here
 ```
 
 ### Step 2: Create Virtual Environment & Install Dependencies
@@ -101,7 +119,23 @@ pip install -r requirements.txt
 
 > 🌐 **Optional Browser Shopping:** To watch customer checkout automation in a visible Chromium browser window, install Playwright: `pip install playwright && playwright install chromium`. Otherwise, default `super_fast` mode generates all data in seconds via CLI.
 
-### Step 3: Launch Services & Generate Data
+### Step 3: Generate Gemini API Key & Create `.env` File
+AutoReconAI uses Google Gemini for multi-stage financial reasoning. You need a free Gemini API key:
+1. If you don't have an API key, go to [Google AI Studio — API Keys](https://aistudio.google.com/api-keys) and click **"Create API Key"**.
+2. Create a `.env` file at the root of the cloned `AutoReconAI` directory:
+   ```env
+   GEMINI_API_KEY=your_actual_gemini_api_key_here
+   ```
+
+### Step 4: Verify Model Availability & Rate Limits (`ai_models.ini`)
+Google periodically rolls out and deprecates model names. To ensure uninterrupted evaluation:
+1. Visit [Google AI Studio — Rate Limits & Available Models](https://aistudio.google.com/rate-limit?timeRange=last-hour) to see which models are active and available on your API key tier.
+2. Open [`ai_models.ini`](ai_models.ini) and verify that `current_model` and fallback models (`gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`, `gemini-flash-latest`, `gemini-3.5-flash`) match your active models.
+3. If any model is restricted or exhausted on your account, simply update `current_model` in `ai_models.ini` to any model you prefer (e.g. `gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-1.5-flash`) without touching Python code.
+
+---
+
+## 🚀 Launch Services & Generate Data
 
 > ⚙️ **Configuring Settings:** The simulation runs out-of-the-box with default settings (50 orders, 20% bank expenses, balanced edge cases). If you wish to customize transaction counts, dates, opening balances, or anomaly rates in `config.ini`, refer to **[`docs/configuration.md`](docs/configuration.md)**. Whenever you modify `config.ini`, **save the file (`Ctrl + S`)**, stop any running servers (`Ctrl + C`), and re-run the commands below so your changes take effect.
 
