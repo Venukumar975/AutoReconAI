@@ -7,7 +7,7 @@
 [![Chart.js](https://img.shields.io/badge/Chart.js-Financial%20Visuals-FF6384.svg)](https://www.chartjs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 
-> **Enterprise-grade 3-way financial reconciliation, real-world commercial anomaly simulation, and multi-agent AI auditing for payment gateway transactions (Razorpay) against merchant store sales and digital bank statements.**
+> **End-to-end payment reconciliation prototype, commercial anomaly simulation, and multi-stage agentic AI auditing for payment gateway transactions (Razorpay) against merchant store sales and digital bank statements.**
 
 ---
 
@@ -61,15 +61,15 @@ When real-world commercial edge cases occur, traditional reconciliation systems 
 * ⚠️ **Gateway MDR Fee Overcharges:** Gateways misclassify card tiers (e.g. charging 2.75% international rates instead of a contracted 2.00% domestic SLA), quietly leaking merchant revenue across thousands of orders.
 * ⚠️ **Orphan Customer Refunds & Fee Leakage:** Returns from prior billing cycles are deducted from today's payout without matching current-day orders, while gateway processing fees (MDR + GST) are permanently non-reversed.
 * ⚠️ **Customer Bank Chargeback Holds:** A customer disputes a charge directly with their bank, causing the gateway to freeze the order GMV plus slap an administrative penalty (₹500 fee + 18% GST) into temporary escrow.
-* ⚠️ **Section 194-O Statutory TDS Withholding:** Under Indian Income Tax law (Section 194-O), E-Commerce Operators (ECOs like Razorpay) are legally mandated to deduct TDS upfront on the gross sales value before releasing payouts. While statutory rates in India vary based on entity type and PAN compliance (ranging from 0.1% to 1.0% standard, or up to 5%/20% under Section 206AA if PAN is invalid), our project implements a **1.00% default baseline rate** (fully customizable in `config.ini`). Razorpay manages this withholding and deposits it directly to the Government of India against the merchant's PAN, settling only the net amount to the bank.
+* ⚠️ **Section 194-O Statutory TDS Withholding (Prototypic Model):** In Indian e-commerce, statutory tax deductions (e.g. Section 194-O TDS) may apply to e-commerce transactions. For demonstration, our prototype implements a **configurable statutory tax parameter in `config.ini`** (defaulting to a simplified baseline demonstration rate). This simulates how statutory withholdings appear in settlement ledgers and ensures the reconciliation engine maps them as tax asset credits (Form 26AS) rather than false-positive payout discrepancies.
 
 ---
 
 ### 💡 The Solution: AutoReconAI
 
-**AutoReconAI** delivers an enterprise-grade, end-to-end automated reconciliation and AI auditing platform:
+**AutoReconAI** delivers an end-to-end prototype, end-to-end automated reconciliation and AI auditing platform:
 
-#### 1. 🧪 Highly Authentic 2-System Data Simulation
+#### 1. 🧪 Realistic 2-System Data Simulation Prototype
 Unlike basic projects that use static mock CSVs or simple random scripts, AutoReconAI simulates **two independent real-world systems**:
 - A **Merchant Storefront Server (Port 5050)** handling live customer shopping carts and sales bills.
 - A **Razorpay Gateway Core Engine (Port 5051)** calculating dynamic MDR fees, GST, TDS, assigning daily UTR batches, and simulating real-world network anomalies.
@@ -78,14 +78,14 @@ Unlike basic projects that use static mock CSVs or simple random scripts, AutoRe
 #### 2. 🖥️ Intuitive 3-Stage AutoReconAI Hub (Left Panel Operations)
 - 📁 **Data Ingestion:** Upload Store Orders CSV, Settlement CSV, and multi-page digital Bank Statements (PDF/Excel). Auto-detects tables with $\ge 5$ columns and provides an interactive visual header mapper.
 - 🔍 **3-Way Reconciliation Matrix:** Displays a unified, triangulated view of all 3 uploaded ledgers grouped by daily settlement UTR containers. Isolates gateway payouts from general bank expenses and tags each order with live match badges (`✅ Matched` / `⚠️ Mismatched`).
-  - **🤖 AI Finance Controller Drawer:** An embedded multi-agent copilot that investigates mismatches, explains disputes, traces order lifecycles, and auto-drafts Razorpay dispute claim tickets with **100% mathematical precision and zero data hallucination**.
+  - **🤖 AI Finance Controller Drawer:** An embedded multi-agent copilot that investigates mismatches, explains disputes, traces order lifecycles, and auto-drafts Razorpay dispute claim tickets with **deterministic tool calculations and zero-hallucination data grounding**.
 - 📊 **Data Analysis & Insights Hub:** An executive financial analytics dashboard featuring interactive Chart.js visualizations, take-rate breakdown, 4 core financial pillars (GMV, Bank Payout, MDR Expense, Claimable 18% GST Input Tax Credit), proportional revenue flow bar, and GSTR-3B tax compliance guidance.
 
-#### 3. 🤖 Specialized Multi-Agent AI Framework
+#### 3. 🤖 Multi-Stage Agentic Reconciliation Framework
 - **Pre-Execution Guardrail (`SentinelFirewallAI`):** Deterministic & semantic security guardrail blocking prompt injections, SQL tampering, and out-of-scope non-financial queries before downstream execution.
 - **Autonomous ReAct Agent (`DomainReasonerAI`):** Domain Intelligence & Autonomous **ReAct (Reason + Act)** auditor. It **Reasons** over the user query & 5-turn memory, then **Acts** by calling deterministic Python calculation tools (`ReconToolbox`) grounded directly in authentic ledgers (`store_orders.csv`, `razorpay_settlement_recon.csv`, bank statements, and `store.db`).
-- **Autonomous Synthesizer & Visual Agent (`PrecisionSynthesizerAI`):** The primary **Financial Synthesis & Communication Engine**. It crafts comprehensive textual answers, itemized ledger tables, ready-to-send Razorpay dispute emails, and statutory tax breakdowns with 100% mathematical immutability. When visual representation is requested, it conditionally synthesizes interactive **Mermaid diagrams (Pie charts, Flowcharts, Subgraphs)** while always maintaining the full analytical explanation and cross-checking facts for zero hallucination.
-- **Executive Tax & Policy Strategist (`TaxOptimizerAI`):** Specialized corporate tax and take-rate evaluator computing statutory Section 16 CGST Input Tax Credit (ITC) compliance under GSTR-3B Table 4(A)(5) and Section 194-O TDS Form 26AS credits for executive dashboard analytics.
+- **Autonomous Synthesizer & Visual Agent (`PrecisionSynthesizerAI`):** The primary **Financial Synthesis & Communication Engine**. It crafts comprehensive textual answers, itemized ledger tables, ready-to-send Razorpay dispute emails, and statutory tax breakdowns with 100% grounded fact verification. When visual representation is requested, it conditionally synthesizes interactive **Mermaid diagrams (Pie charts, Flowcharts, Subgraphs)** while always maintaining the full analytical explanation and cross-checking facts for verified tool grounding.
+- **Specialized Tax Strategy & Compliance Module (`TaxOptimizerAI`):** Specialized corporate tax and take-rate evaluator computing statutory Section 16 CGST Input Tax Credit (ITC) compliance under GSTR-3B Table 4(A)(5) and Section 194-O TDS Form 26AS credits for executive dashboard analytics.
 
 ---
 
@@ -109,7 +109,7 @@ flowchart LR
 
 ## 🏗️ System Architecture & Port Map
 
-AutoReconAI runs 3 coordinated microservices:
+AutoReconAI runs 3 coordinated local services:
 
 | Service Name | Port | Endpoint URL | Role & Description |
 |:---|:---|:---|:---|
@@ -410,7 +410,7 @@ AutoReconAI automatically isolates gateway payout deposits from regular non-gate
 
 ---
 
-#### 2.1 🤖 Multi-Agent AI Controller & Pipeline Architecture
+#### 2.1 🤖 Multi-Stage Agentic Reconciliation Pipeline Architecture
 
 ##### 🎯 Why Multi-Agent AI is Critical for Financial Auditing
 Standard generative LLMs fail at accounting reconciliation because they attempt to calculate arithmetic in-context, leading to hallucinations, fabricated numbers, and incorrect tax deductions. AutoReconAI solves this by enforcing a **Strict Dependency-Gated Multi-Agent Architecture** where the LLM is decoupled from calculation and acts strictly as an orchestrator and presenter over deterministic Python verification tools.
@@ -484,7 +484,7 @@ flowchart TD
        - 📊 **Comparative Subgraph Mappings (`flowchart LR`):** Order-wise effective rate markups against the contracted 2.60% SLA baseline.
      - **Interactive Pan & Zoom Diagram Viewer:** Equipped with a floating toolbar (➕ Zoom In, ➖ Zoom Out, ↺ Reset) and click-and-drag hand panning.
    - **Mandatory Visual-to-Data Cross-Check Audit (Zero Hallucination):**
-     - Systematically audits all diagram labels, percentages, and slice values against Agent 2's raw verified facts payload before delivering output, guaranteeing 100% mathematical consistency down to the exact paise across both text and visual components.
+     - Systematically audits all diagram labels, percentages, and slice values against Agent 2's raw verified facts payload before delivering output, grounding the response in verified tool calculations down to the exact paise across both text and visual components.
 
 ---
 
