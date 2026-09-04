@@ -486,16 +486,50 @@ def generate_sbi_bank_statement_pdf(final_txns, opening_balance):
         credit_str = f"{t['credit']:,.2f}" if t['credit'] > 0 else "-"
         table_data.append([t["txn_date"], t["value_date"], Paragraph(t["description"], cell_style), t["ref_no"], t["branch_code"], debit_str, credit_str, f"{t['balance']:,.2f}"])
 
-    col_widths = [62, 62, 250, 95, 55, 70, 70, 80]
+    col_widths = [55, 55, 234, 95, 65, 75, 75, 90]
     t = Table(table_data, colWidths=col_widths)
     t.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 7.5),
+        ('ALIGN', (0, 0), (1, -1), 'CENTER'),
+        ('ALIGN', (3, 0), (4, -1), 'CENTER'),
+        ('ALIGN', (5, 0), (-1, -1), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8FAFC')]),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 6.5),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
     ]))
     elements.append(t)
+    elements.append(Spacer(1, 10))
+
+    # Summary Table with Opening and Closing Balance (matching Union Bank pattern)
+    total_debits = sum(t["debit"] for t in final_txns)
+    total_credits = sum(t["credit"] for t in final_txns)
+    closing_balance = final_txns[-1]["balance"] if final_txns else opening_balance
+
+    summary_data = [
+        ["Statement Summary :", f"Total Debits : {total_debits:,.2f}", f"Opening Balance : {opening_balance:,.2f} Cr"],
+        ["", f"Total Credits : {total_credits:,.2f}", f"Closing Balance : {closing_balance:,.2f} Cr"]
+    ]
+    sum_t = Table(summary_data, colWidths=[144, 300, 300])
+    sum_t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#EBF3FA')),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 7.5),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#003366')),
+        ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#99C2E8')),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    elements.append(sum_t)
+
     doc.build(elements)
     print(f"[SUCCESS] Generated Official SBI Bank Statement PDF to: {SBI_PDF_PATH}")
 
@@ -508,13 +542,43 @@ def generate_sbi_bank_statement_xlsx(final_txns, opening_balance):
     headers = ["Txn Date", "Value Date", "Description", "Ref No./Cheque No.", "Branch Code", "Debit", "Credit", "Balance"]
     ws.append(headers)
 
-    yellow_fill = PatternFill(start_color="FFF066", end_color="FFF066", fill_type="solid")
+    header_fill = PatternFill(start_color="003366", end_color="003366", fill_type="solid")
+    header_font = Font(name="Segoe UI", size=10, bold=True, color="FFFFFF")
+    header_alignment = Alignment(horizontal="center", vertical="center")
+
+    thin_border = Border(
+        left=Side(style='thin', color='CBD5E1'),
+        right=Side(style='thin', color='CBD5E1'),
+        top=Side(style='thin', color='CBD5E1'),
+        bottom=Side(style='thin', color='CBD5E1')
+    )
+
     for col_num in range(1, len(headers) + 1):
         cell = ws.cell(row=1, column=col_num)
-        cell.fill = yellow_fill
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_alignment
+        cell.border = thin_border
 
-    for t in final_txns:
-        ws.append([t["txn_date"], t["value_date"], t["description"], t["ref_no"], t["branch_code"], t["debit"] or None, t["credit"] or None, t["balance"]])
+    total_debits = sum(t["debit"] for t in final_txns)
+    total_credits = sum(t["credit"] for t in final_txns)
+    closing_balance = final_txns[-1]["balance"] if final_txns else opening_balance
+
+    for idx, t in enumerate(final_txns, start=2):
+        debit_val = t['debit'] if t['debit'] > 0 else None
+        credit_val = t['credit'] if t['credit'] > 0 else None
+        ws.append([t["txn_date"], t["value_date"], t["description"], t["ref_no"], t["branch_code"], debit_val, credit_val, t["balance"]])
+        for col_idx in range(1, 9):
+            cell = ws.cell(row=idx, column=col_idx)
+            cell.border = thin_border
+            if col_idx in [6, 7, 8]:
+                cell.number_format = "#,##0.00"
+                cell.alignment = Alignment(horizontal="right", vertical="center")
+
+    # Add Summary Rows matching Union Bank
+    ws.append([])
+    ws.append(["Summary :", "", f"Total Debits : {total_debits:,.2f}", "", "", "", f"Opening Balance : {opening_balance:,.2f} Cr"])
+    ws.append(["", "", f"Total Credits : {total_credits:,.2f}", "", "", "", f"Closing Balance : {closing_balance:,.2f} Cr"])
 
     wb.save(SBI_XLSX_PATH)
     print(f"[SUCCESS] Generated SBI Bank Statement Excel Sheet to: {SBI_XLSX_PATH}")

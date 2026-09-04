@@ -11,14 +11,15 @@ AutoReconAI is fully parameter-driven through two dedicated configuration files:
 The simulation settings in `config.ini` are split into two logical sections:
 
 ### Section A: Baseline Simulation & Commercial Rates
+*(Default baseline settings configured in `config.ini`)*
 
 ```ini
 [SIMULATION]
 simulation_mode = super_fast
-razorpay_transactions_count = 60
+razorpay_transactions_count = 50
 start_date = 2026-05-01
 end_date = 2026-05-30
-imputed_expenses_percentage = 20
+imputed_expenses_percentage = 30
 bank_pdf_format = UNION_BANK
 opening_balance = 25000.00
 
@@ -33,29 +34,30 @@ is_tds_applicable = yes
 tds_rate_percent = 1
 ```
 
-* **`simulation_mode`**: Selects execution engine — `super_fast` (pure Python HTTP API calls, generating 50+ orders in seconds without launching a browser), `fast` (accelerated Chromium browser window), or `normal` (human-like visual shopping delays).  
+* **`simulation_mode`**: Selects execution engine — `super_fast` **(Recommended: pure Python HTTP API calls, generating 50+ orders in seconds without launching a browser)**, `fast` (accelerated Chromium browser window), or `normal` (human-like visual shopping delays).  
   *(Note: `fast` and `normal` modes require Playwright and Chromium. To install them, run: `pip install playwright && playwright install chromium`).*
-* **`razorpay_transactions_count`**: Total number of customer orders and payments to simulate (supported range: `10` to `2000`; default `60`).
-* **`start_date` & `end_date`**: Defines the date window (`YYYY-MM-DD`) for all generated checkouts, webhook callbacks, and settlement entries.
-* **`imputed_expenses_percentage`**: Percentage of non-gateway operational expenses added to the bank statement (e.g. 60 transactions at 20% injects 12 debits for office rent, electricity, vendor UPI, salaries) to verify that the 3-way matrix cleanly separates operating expenses from gateway payouts.
+* **`razorpay_transactions_count`**: Total number of customer orders and payments to simulate (supported range: `10` to `2000`; default `50`).
+* **`start_date` & `end_date`**: Defines the date window (`YYYY-MM-DD`) for all generated checkouts, webhook callbacks, and settlement entries (all Razorpay payouts and non-gateway expenses fall inside this window).
+* **`imputed_expenses_percentage`**: Percentage of non-gateway operational expenses added to the bank statement (e.g. 50 transactions at 30% injects 15 debits for office rent, electricity, vendor UPI, salaries) to verify that the 3-way matrix cleanly separates operating expenses from gateway payouts.
 * **`bank_pdf_format`**: Chooses the statement template — `UNION_BANK` (7-column layout with account summary box) or `SBI` (8-column landscape layout).
 * **`opening_balance`**: Starting bank balance on `start_date` used to compute running balances across the generated statement.
 * **`mdr_rate_percent`**: Contracted Merchant Discount Rate SLA (e.g. `2.0%`) used by the engine to audit fee leakage.
 * **`gst_rate_percent`**: Statutory GST applied on gateway MDR processing fees (e.g. `18.0%`).
 * **`gstin` & `pan`**: Merchant tax identifiers used in settlement summaries and GSTR-3B Table 4A Input Tax Credit claims.
-* **`is_tds_applicable` & `tds_rate_percent`**: Enables prototypic Section 194-O statutory tax withholding modeling. *Note: `tds_rate_percent = 1` is a configurable prototype demonstration rate for testing statutory deduction tracking.*
+* **`is_tds_applicable` & `tds_rate_percent`**: Enables prototypic Section 194-O statutory tax withholding modeling (takes effect when `enable_edge_cases = true`). *Note: `tds_rate_percent = 1` is a configurable prototype demonstration rate for testing statutory deduction tracking.*
 
 ---
 
 ### Section B: Prototypic Commercial Edge Cases
+*(Default anomaly counts configured in `config.ini`)*
 
 ```ini
 [EDGE_CASES]
 enable_edge_cases = true
-dropped_webhook_count = 9
-fee_overcharge_count = 5
-orphan_refund_count = 10
-chargeback_hold_count = 20
+dropped_webhook_count = 4
+fee_overcharge_count = 3
+orphan_refund_count = 3
+chargeback_hold_count = 4
 
 [RANGE_LIMITS]
 min_transactions = 10
@@ -64,10 +66,10 @@ max_transactions = 2000
 
 * **`enable_edge_cases`**: Master toggle — `true` injects controlled commercial anomalies into randomly selected transactions; `false` generates a 100% cleanly matched baseline.
 * **`dropped_webhook_count`**: Number of orders where payment is captured and settled in the bank, but the store order status remains stuck in `PENDING` due to simulated network packet drop.
-* **`fee_overcharge_count`**: Number of payments billed at an inflated interchange rate (~2.75% vs. 2.0% contracted SLA) to test fee leakage recovery.
+* **`fee_overcharge_count`**: Number of payments billed above agreed 2.0% MDR SLA (simulating dynamic overcharges adding +0.50% to +0.85% extra fee) to test fee leakage recovery.
 * **`orphan_refund_count`**: Number of prior-period customer return refund deductions injected into the settlement payout with non-reversed gateway processing fees.
 * **`chargeback_hold_count`**: Number of customer bank disputes that freeze order GMV into escrow and apply an administrative penalty (₹500 fee + ₹90 GST).
-* **`min_transactions` & `max_transactions`**: Safety boundaries (`10` to `2000`) for simulator processing.
+* **`min_transactions` & `max_transactions`**: Advisory performance boundaries (`10` to `2000`) for optimal simulator processing.
 
 ---
 

@@ -601,7 +601,7 @@ flowchart TD
     
     Engine["⚙️ <b>SettlementUnpackerEngine</b><br/><i>(7-Bucket Forensic Decomposition & Equation Balancing)</i>"]
     
-    TaxOpt["🏛️ <b>TaxOptimizerAI (Agent 4)</b><br/><i>(Section 16 CGST Act Compliance & Executive FAQs)</i>"]
+    TaxOpt["🏛️ <b>TaxOptimizerAI</b><br/><i>(Section 16 CGST Act Compliance & Executive FAQs)</i>"]
     
     Chart["📊 <b>11-Bar Settlement Allocation Chart</b><br/><i>(Values & % of Gross GMV via Chart.js)</i>"]
     Equation["🧮 <b>Master Reconciliation Equation Box</b><br/><i>(Dynamic Balance Validation & Cash Recovery Upside)</i>"]
@@ -624,7 +624,7 @@ flowchart TD
     class Chart,Equation,FAQs actionBox;
 ```
 
-##### 🏛️ Role & Capabilities of `TaxOptimizerAI` (Agent 4):
+##### 🏛️ Role & Capabilities of `TaxOptimizerAI`:
 - **Specialized Financial Policy Evaluator:** Unlike interactive chat agents, `TaxOptimizerAI` receives **100% verified deterministic metrics** and synthesizes executive guidance adhering to Indian statutory tax standards (CBDT / CBIC / RBI).
 - **Core Advisory Pillars:**
   1. **Section 16 CGST Act Input Tax Credit (ITC):** Quantifies total 18% GST deducted on processing fees and provides precise reporting instructions for **monthly GSTR-3B filings (Table 4A - "All other ITC")** to reduce merchant net tax liability.

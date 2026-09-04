@@ -190,7 +190,7 @@ def detect_bank_table():
             if not suggested_mapping["secondary_narration"] and re.search(r'\b(ref|cheque|chq|reference)\b', h_lower):
                 suggested_mapping["secondary_narration"] = h_clean
 
-            if not suggested_mapping["debit"] and re.search(r'\b(debit|withdrawal|dr)\b', h_lower):
+            if not suggested_mapping["debit"] and (re.search(r'\b(debit|withdrawal|dr)\b', h_lower) or "debit" in h_lower):
                 suggested_mapping["debit"] = h_clean
 
             if not suggested_mapping["credit"] and re.search(r'\b(credit|deposit|cr)\b', h_lower) and "desc" not in h_lower:

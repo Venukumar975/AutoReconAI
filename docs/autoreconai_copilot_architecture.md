@@ -1,12 +1,14 @@
-# 🤖 Multi-Stage Agentic AI Pipeline
+# 🤖 AutoReconAI Copilot Architecture
 
-Financial reconciliation requires deterministic arithmetic precision. Large Language Models (LLMs) often hallucinate numbers when asked to calculate fees or aggregate multi-page tabular data directly in raw text.
+**AutoReconAI Copilot** is our autonomous conversational financial controller bot embedded directly inside the reconciliation dashboard (accessible via the floating bottom-right drawer button). 
 
-AutoReconAI prevents financial hallucination by separating **deterministic fact retrieval** from **cognitive domain reasoning and formatting**.
+Financial reconciliation requires deterministic arithmetic precision—raw Large Language Models (LLMs) often hallucinate numbers when asked to calculate fees or aggregate multi-page tabular data in free text.
+
+**AutoReconAI Copilot** prevents financial hallucination by enforcing strict separation between **deterministic fact retrieval** (10 Python calculation tools in `ReconToolbox`) and **cognitive domain reasoning and visual presentation** (multi-stage AI pipeline).
 
 ```mermaid
 flowchart TD
-    UserQuery["👤 Merchant Financial Query"] --> Stage1
+    UserQuery["👤 Merchant Query to AutoReconAI Copilot"] --> Stage1
 
     subgraph Stage1["1. Pre-Execution Security & Scope Guardrail"]
         FW1["<b>SentinelFirewallAI</b>"]
@@ -26,7 +28,7 @@ flowchart TD
         Reasoner <--> ToolRegistry
     end
 
-    subgraph Stage3["3. Deterministic Python Auditing Tools"]
+    subgraph Stage3["Deterministic Python Auditing Tools"]
         Tools["<b>ReconToolbox</b><br/><i>(10 Auditing Tools)</i>"]
         T1["inspect_order_lifecycle"]
         T2["calculate_fee_discrepancies"]
@@ -42,7 +44,7 @@ flowchart TD
 
     Stage2 -->|"Verified Facts JSON (Arithmetic Frozen)"| Stage4
 
-    subgraph Stage4["4. Presentation & Visual Synthesizer"]
+    subgraph Stage4["3. Presentation & Visual Synthesizer"]
         Synth["<b>PrecisionSynthesizerAI</b>"]
         Out1["📊 Structured Markdown Tables & Totals"]
         Out2["📧 Formal Razorpay Dispute Claim Emails"]
