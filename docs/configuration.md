@@ -33,7 +33,8 @@ is_tds_applicable = yes
 tds_rate_percent = 1
 ```
 
-* **`simulation_mode`**: Selects execution engine — `super_fast` (pure Python HTTP API calls, generating 50+ orders in seconds without a browser), `fast` (accelerated Chromium browser window), or `normal` (human-like visual shopping delays).
+* **`simulation_mode`**: Selects execution engine — `super_fast` (pure Python HTTP API calls, generating 50+ orders in seconds without launching a browser), `fast` (accelerated Chromium browser window), or `normal` (human-like visual shopping delays).  
+  *(Note: `fast` and `normal` modes require Playwright and Chromium. To install them, run: `pip install playwright && playwright install chromium`).*
 * **`razorpay_transactions_count`**: Total number of customer orders and payments to simulate (supported range: `10` to `2000`; default `60`).
 * **`start_date` & `end_date`**: Defines the date window (`YYYY-MM-DD`) for all generated checkouts, webhook callbacks, and settlement entries.
 * **`imputed_expenses_percentage`**: Percentage of non-gateway operational expenses added to the bank statement (e.g. 60 transactions at 20% injects 12 debits for office rent, electricity, vendor UPI, salaries) to verify that the 3-way matrix cleanly separates operating expenses from gateway payouts.
